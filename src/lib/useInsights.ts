@@ -3,6 +3,11 @@ import { supabase } from './supabase'
 import { useSession } from './session'
 import type { Insight, InsightFeedback, InsightFeedbackAction } from '../types'
 
+interface GenerateResult {
+  insights_emitted: number
+  errors: string[]
+}
+
 const SITE_ID = import.meta.env.VITE_DEMO_SITE_ID as string
 
 export function useInsights() {
@@ -10,6 +15,7 @@ export function useInsights() {
   const [allInsights, setAllInsights] = useState<Insight[]>([])
   const [feedback, setFeedback] = useState<InsightFeedback[]>([])
   const [loading, setLoading] = useState(true)
+  const [generating, setGenerating] = useState(false)
 
   const load = useCallback(async () => {
     if (!SITE_ID) { setLoading(false); return }
@@ -81,11 +87,24 @@ export function useInsights() {
     [user]
   )
 
+  const triggerGeneration = useCallback(async (): Promise<GenerateResult> => {
+    setGenerating(true)
+    try {
+      const { data } = await supabase.functions.invoke<GenerateResult>('generate-insights')
+      await load()
+      return data ?? { insights_emitted: 0, errors: [] }
+    } finally {
+      setGenerating(false)
+    }
+  }, [load])
+
   return {
     insights,
     loading,
     totalActive: allInsights.length,
     submitFeedback,
     reload: load,
+    generating,
+    triggerGeneration,
   }
 }

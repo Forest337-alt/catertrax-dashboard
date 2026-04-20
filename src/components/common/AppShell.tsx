@@ -16,7 +16,7 @@ export default function AppShell({ children, className }: Props) {
   const navigate = useNavigate()
   const [panelOpen, setPanelOpen] = useState(false)
 
-  const { insights, loading: insightsLoading, totalActive, submitFeedback } = useInsights()
+  const { insights, loading: insightsLoading, totalActive, submitFeedback, generating, triggerGeneration } = useInsights()
 
   return (
     <div className="min-h-screen flex flex-col bg-white">
@@ -70,6 +70,8 @@ export default function AppShell({ children, className }: Props) {
           loading={insightsLoading}
           onAction={(id, action) => submitFeedback(id, action)}
           onClose={() => setPanelOpen(false)}
+          onGenerate={triggerGeneration}
+          generating={generating}
         />
       )}
     </div>

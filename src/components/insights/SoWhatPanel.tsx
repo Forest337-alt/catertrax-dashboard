@@ -1,3 +1,4 @@
+import { useState } from 'react'
 import type { Insight, InsightFeedbackAction } from '../../types'
 import InsightCard from './InsightCard'
 
@@ -6,9 +7,18 @@ interface Props {
   loading: boolean
   onAction: (insightId: string, action: InsightFeedbackAction) => void
   onClose: () => void
+  onGenerate: () => Promise<{ insights_emitted: number; errors: string[] }>
+  generating: boolean
 }
 
-export default function SoWhatPanel({ insights, loading, onAction, onClose }: Props) {
+export default function SoWhatPanel({ insights, loading, onAction, onClose, onGenerate, generating }: Props) {
+  const [lastResult, setLastResult] = useState<{ insights_emitted: number; errors: string[] } | null>(null)
+
+  async function handleGenerate() {
+    setLastResult(null)
+    const result = await onGenerate()
+    setLastResult(result)
+  }
   return (
     <>
       {/* Backdrop */}
@@ -59,7 +69,23 @@ export default function SoWhatPanel({ insights, loading, onAction, onClose }: Pr
         </div>
 
         {/* Footer */}
-        <div className="px-5 py-3 border-t border-gray-100 bg-gray-50 flex-shrink-0">
+        <div className="px-5 py-4 border-t border-gray-100 bg-gray-50 flex-shrink-0 space-y-2">
+          <button
+            onClick={handleGenerate}
+            disabled={generating || loading}
+            className="w-full text-sm font-medium text-primary-800 border border-primary-300 rounded-lg px-3 py-2 hover:bg-primary-50 disabled:opacity-50 transition-colors"
+          >
+            {generating ? 'Generating…' : 'Generate insights now'}
+          </button>
+          {lastResult && (
+            <p className={`text-xs text-center ${lastResult.errors.length > 0 ? 'text-amber-600' : 'text-secondary-600'}`}>
+              {lastResult.errors.length > 0
+                ? `Completed with errors: ${lastResult.errors[0]}`
+                : lastResult.insights_emitted === 0
+                  ? 'No new insights — all generators are up to date.'
+                  : `${lastResult.insights_emitted} new insight${lastResult.insights_emitted !== 1 ? 's' : ''} generated.`}
+            </p>
+          )}
           <p className="text-xs text-gray-400">
             Insights are generated nightly. Dismissed insights won't reappear.
           </p>
