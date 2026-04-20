@@ -33,7 +33,7 @@ const CHART_ICONS: Record<string, string> = {
 const REVENUE_TREND_SPEC: ChartSpec = {
   title: 'Revenue Trend', description: 'Monthly revenue for the last 6 months',
   sql: '', chart_type: 'area',
-  x_axis: { field: 'month', label: 'Month', type: 'temporal' },
+  x_axis: { field: 'month', label: 'Month', type: 'categorical' },
   y_axis: { field: 'revenue', label: 'Revenue', type: 'currency' },
   series: [{ field: 'revenue', label: 'Revenue', color: '#234A73' }],
 }
@@ -46,7 +46,21 @@ const TOP_ACCOUNTS_SPEC: ChartSpec = {
   series: [{ field: 'revenue', label: 'Revenue', color: '#4582A9' }],
 }
 
-const REVENUE_TREND_SQL = `SELECT TO_CHAR(DATE_TRUNC('month', order_date), 'YYYY-MM') AS month, ROUND(SUM(total), 0) AS revenue FROM orders WHERE site_id = '${SITE_ID}' AND status = 'completed' AND order_date >= DATE_TRUNC('month', CURRENT_DATE) - INTERVAL '5 months' GROUP BY 1 ORDER BY 1`
+const REVENUE_TREND_SQL = `
+SELECT
+  TO_CHAR(m.month, 'Mon YYYY') AS month,
+  COALESCE(ROUND(SUM(o.total), 0), 0) AS revenue
+FROM generate_series(
+  DATE_TRUNC('month', CURRENT_DATE) - INTERVAL '5 months',
+  DATE_TRUNC('month', CURRENT_DATE),
+  INTERVAL '1 month'
+) AS m(month)
+LEFT JOIN orders o
+  ON DATE_TRUNC('month', o.order_date) = m.month
+  AND o.site_id = '${SITE_ID}'
+  AND o.status = 'completed'
+GROUP BY m.month
+ORDER BY m.month`
 
 const TOP_ACCOUNTS_SQL = `SELECT a.name AS account, ROUND(SUM(o.total), 0) AS revenue FROM orders o JOIN accounts a ON a.id = o.account_id WHERE o.site_id = '${SITE_ID}' AND o.status = 'completed' GROUP BY a.name ORDER BY revenue DESC LIMIT 5`
 
