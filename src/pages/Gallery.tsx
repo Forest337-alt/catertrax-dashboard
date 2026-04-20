@@ -327,10 +327,10 @@ function OverviewPane({
 
       {/* KPI cards */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-        <KpiCard label="Revenue this month"        value={kpis.revenue}    type="currency" loading={kpisLoading} icon="💰" />
-        <KpiCard label="Orders this month"         value={kpis.orderCount} type="numeric"  loading={kpisLoading} icon="📦" />
-        <KpiCard label="On-time fulfillment (30d)" value={kpis.onTimeRate} type="percent"  loading={kpisLoading} icon="✅" />
-        <KpiCard label="Avg order value (30d)"     value={kpis.aov}        type="currency" loading={kpisLoading} icon="🧾" />
+        <KpiCard label="Revenue this month"        value={kpis.revenue}    type="currency" loading={kpisLoading} trend={kpis.revenueTrend}    trendLabel="vs same period last mo." />
+        <KpiCard label="Orders this month"         value={kpis.orderCount} type="numeric"  loading={kpisLoading} trend={kpis.orderCountTrend} trendLabel="vs same period last mo." />
+        <KpiCard label="On-time fulfillment (30d)" value={kpis.onTimeRate} type="percent"  loading={kpisLoading} trend={kpis.onTimeRateTrend} trendLabel="vs prior 30d" />
+        <KpiCard label="Avg order value (30d)"     value={kpis.aov}        type="currency" loading={kpisLoading} trend={kpis.aovTrend}        trendLabel="vs prior 30d" />
       </div>
 
       {/* Mini charts */}
@@ -342,7 +342,6 @@ function OverviewPane({
       {/* AI prompt */}
       <div className="rounded-2xl border border-gray-200 bg-gray-50 p-6">
         <div className="flex items-center gap-2 mb-1">
-          <span className="text-lg" aria-hidden>✦</span>
           <h2 className="text-base font-bold text-gray-900">Ask AI to build a custom view</h2>
         </div>
         <p className="text-sm text-gray-500 mb-4">
@@ -436,7 +435,6 @@ function AiResultPane({
             ← Back to overview
           </button>
           <div className="flex items-center gap-2 mb-1">
-            <span className="text-xl">{CHART_ICONS[spec.chart_type] ?? '📊'}</span>
             <span className="text-xs text-gray-400 bg-gray-100 px-2 py-0.5 rounded-full capitalize">
               {spec.chart_type.replace('_', ' ')}
             </span>
@@ -462,7 +460,7 @@ function AiResultPane({
 
       {/* Follow-up */}
       <div className="rounded-xl border border-gray-200 bg-gray-50 p-5">
-        <p className="text-sm font-medium text-gray-700 mb-3">✦ Refine or ask a follow-up</p>
+        <p className="text-sm font-medium text-gray-700 mb-3">Refine or ask a follow-up</p>
 
         <div className="flex gap-2">
           <input
@@ -534,7 +532,6 @@ function ViewDetailPane({ view }: { view: SavedView }) {
       <div className="flex items-start justify-between mb-6 gap-4">
         <div className="min-w-0">
           <div className="flex items-center gap-2 mb-2">
-            <span className="text-xl">{CHART_ICONS[view.chart_spec.chart_type] ?? '📊'}</span>
             <span className="text-xs text-gray-400 bg-gray-100 px-2 py-0.5 rounded-full capitalize">
               {view.chart_spec.chart_type.replace('_', ' ')}
             </span>

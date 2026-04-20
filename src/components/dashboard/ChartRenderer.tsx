@@ -26,8 +26,7 @@ export default function ChartRenderer({ spec, data, loading, onDrillDown }: Prop
 
   if (data.length === 0) {
     return (
-      <div className="flex flex-col items-center justify-center h-48 text-gray-400 gap-2">
-        <span className="text-3xl">📊</span>
+      <div className="flex items-center justify-center h-48 text-gray-400">
         <p className="text-sm">No data matches your query.</p>
       </div>
     )
