@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import React, { useEffect, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import AppShell from '../components/common/AppShell'
 import { supabase, executeQuery } from '../lib/supabase'
@@ -35,7 +35,7 @@ const REVENUE_TREND_SPEC: ChartSpec = {
   sql: '', chart_type: 'area',
   x_axis: { field: 'month', label: 'Month', type: 'temporal' },
   y_axis: { field: 'revenue', label: 'Revenue', type: 'currency' },
-  series: [{ field: 'revenue', label: 'Revenue', color: '#1e40af' }],
+  series: [{ field: 'revenue', label: 'Revenue', color: '#234A73' }],
 }
 
 const TOP_ACCOUNTS_SPEC: ChartSpec = {
@@ -43,7 +43,7 @@ const TOP_ACCOUNTS_SPEC: ChartSpec = {
   sql: '', chart_type: 'bar',
   x_axis: { field: 'account', label: 'Account', type: 'categorical' },
   y_axis: { field: 'revenue', label: 'Revenue', type: 'currency' },
-  series: [{ field: 'revenue', label: 'Revenue', color: '#059669' }],
+  series: [{ field: 'revenue', label: 'Revenue', color: '#4582A9' }],
 }
 
 const REVENUE_TREND_SQL = `SELECT TO_CHAR(DATE_TRUNC('month', order_date), 'YYYY-MM') AS month, ROUND(SUM(total), 0) AS revenue FROM orders WHERE site_id = '${SITE_ID}' AND status = 'completed' AND order_date >= DATE_TRUNC('month', CURRENT_DATE) - INTERVAL '5 months' GROUP BY 1 ORDER BY 1`
@@ -76,6 +76,11 @@ export default function Gallery() {
   const [aiHistory, setAiHistory] = useState<ChatMessage[]>([])
   const [aiThinking, setAiThinking] = useState(false)
   const [aiError, setAiError] = useState<string | null>(null)
+
+  // Save modal state
+  const [showSaveModal, setShowSaveModal] = useState(false)
+  const [saveError, setSaveError] = useState<string | null>(null)
+  const [isSaving, setIsSaving] = useState(false)
 
   useEffect(() => {
     async function load() {
@@ -167,10 +172,15 @@ export default function Gallery() {
     setAiError(null)
   }
 
-  async function handleAiSave() {
+  function openSaveModal() {
+    setSaveError(null)
+    setShowSaveModal(true)
+  }
+
+  async function handleAiSave(name: string) {
     if (!aiSpec || !user) return
-    const name = window.prompt('Name this view:', aiSpec.title)
-    if (!name) return
+    setIsSaving(true)
+    setSaveError(null)
     const { data: row, error } = await supabase
       .from('saved_views')
       .insert({
@@ -183,8 +193,13 @@ export default function Gallery() {
       })
       .select('id')
       .single()
-    if (error) alert('Failed to save: ' + error.message)
-    else navigate(`/view/${(row as { id: string }).id}`)
+    setIsSaving(false)
+    if (error) {
+      setSaveError(error.message)
+    } else {
+      setShowSaveModal(false)
+      navigate(`/view/${(row as { id: string }).id}`)
+    }
   }
 
   return (
@@ -251,7 +266,7 @@ export default function Gallery() {
             thinking={aiThinking}
             error={aiError}
             onReset={handleAiReset}
-            onSave={handleAiSave}
+            onSave={openSaveModal}
           />
         ) : (
           <OverviewPane
@@ -263,6 +278,16 @@ export default function Gallery() {
           />
         )}
       </div>
+
+      {showSaveModal && aiSpec && (
+        <SaveViewModal
+          defaultName={aiSpec.title}
+          isSaving={isSaving}
+          error={saveError}
+          onConfirm={handleAiSave}
+          onClose={() => setShowSaveModal(false)}
+        />
+      )}
 
     </AppShell>
   )
@@ -534,6 +559,80 @@ function ViewDetailPane({ view }: { view: SavedView }) {
           <ChartRenderer spec={view.chart_spec} data={data} loading={loading} />
         </div>
       )}
+    </div>
+  )
+}
+
+// ─── Save view modal ──────────────────────────────────────────────────────────
+
+function SaveViewModal({
+  defaultName,
+  isSaving,
+  error,
+  onConfirm,
+  onClose,
+}: {
+  defaultName: string
+  isSaving: boolean
+  error: string | null
+  onConfirm: (name: string) => void
+  onClose: () => void
+}) {
+  const [name, setName] = useState(defaultName)
+
+  function handleSubmit(e: React.FormEvent) {
+    e.preventDefault()
+    if (!name.trim() || isSaving) return
+    onConfirm(name.trim())
+  }
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/40"
+      onMouseDown={(e) => { if (e.target === e.currentTarget) onClose() }}
+    >
+      <div className="bg-white rounded-2xl shadow-xl w-full max-w-md mx-4 p-6">
+        <h2 className="text-lg font-bold text-gray-900 mb-1">Save this view</h2>
+        <p className="text-sm text-gray-500 mb-5">
+          Give it a name and it will appear in your saved views.
+        </p>
+
+        <form onSubmit={handleSubmit}>
+          <label className="block text-sm font-medium text-gray-700 mb-1.5">View name</label>
+          <input
+            type="text"
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            autoFocus
+            className="w-full text-sm border border-gray-300 rounded-lg px-3 py-2.5 focus:outline-none focus:ring-2 focus:ring-primary-800 focus:border-transparent"
+            onKeyDown={(e) => e.key === 'Escape' && onClose()}
+          />
+
+          {error && (
+            <p className="mt-3 text-sm text-red-700 bg-red-50 border border-red-200 rounded-lg px-3 py-2">
+              {error}
+            </p>
+          )}
+
+          <div className="flex justify-end gap-3 mt-6">
+            <button
+              type="button"
+              onClick={onClose}
+              disabled={isSaving}
+              className="text-sm font-medium text-gray-600 px-4 py-2 rounded-lg border border-gray-200 hover:bg-gray-50 disabled:opacity-50 transition-colors"
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              disabled={!name.trim() || isSaving}
+              className="text-sm font-semibold text-white bg-primary-800 px-5 py-2 rounded-lg hover:bg-primary-700 disabled:opacity-50 transition-colors"
+            >
+              {isSaving ? 'Saving…' : 'Save view'}
+            </button>
+          </div>
+        </form>
+      </div>
     </div>
   )
 }

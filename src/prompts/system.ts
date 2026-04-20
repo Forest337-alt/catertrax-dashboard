@@ -85,6 +85,13 @@ menu category: 'hot_entree', 'sandwich_platter', 'breakfast', 'salad_bowl', 'bev
 - Default to completed orders only unless user explicitly asks about cancellations: WHERE o.status = 'completed'
 - Use named CTEs for readability when queries have multiple steps.
 
+## Brand color palette
+
+Always use these hex values for series colors, in order, for all chart types:
+'#234A73', '#4582A9', '#5B9EC9', '#76a4c4', '#a3c2d9', '#2d5a80', '#376d8e'
+
+For single-series charts use '#234A73'. For two-series comparisons use '#234A73' (primary) and '#76a4c4' (secondary). Never use colors outside this set.
+
 ## Chart type selection guidance
 
 - Time series → 'line' or 'area'

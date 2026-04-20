@@ -191,7 +191,7 @@ LIMIT 20`,
       y_axis: { field: 'revenue', label: 'Revenue ($)', type: 'currency' },
       series: [
         { field: 'current_year', label: 'This Year', color: '#234A73' },
-        { field: 'prior_year', label: 'Last Year', color: '#93c5fd' },
+        { field: 'prior_year', label: 'Last Year', color: '#76a4c4' },
       ],
       filters_applied: [{ field: 'period', value: 'Year-to-date comparison' }],
       follow_up_suggestions: [

@@ -11,7 +11,8 @@ import type { ChartSpec } from '../../types'
 import { formatValue } from '../../lib/chartSpec'
 import { ChartSkeleton } from '../common/Skeleton'
 
-const PALETTE = ['#234A73', '#4582A9', '#5B9EC9', '#d97706', '#dc2626', '#374151', '#9ca3af']
+// Brand navy ramp — darkest to lightest
+const PALETTE = ['#234A73', '#2d5a80', '#376d8e', '#4582A9', '#5B9EC9', '#76a4c4', '#a3c2d9']
 
 interface Props {
   spec: ChartSpec
@@ -266,7 +267,7 @@ function HeatmapChart({
                     title={`${x} / ${y}: ${val}`}
                     className="w-16 h-10 rounded text-center font-medium"
                     style={{
-                      backgroundColor: `rgba(30, 64, 175, ${Math.max(0.05, intensity)})`,
+                      backgroundColor: `rgba(35, 74, 115, ${Math.max(0.05, intensity)})`,
                       color: intensity > 0.5 ? 'white' : '#234A73',
                     }}
                   >
