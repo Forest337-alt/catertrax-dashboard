@@ -14,19 +14,35 @@ import { ChartSkeleton } from '../common/Skeleton'
 // Brand navy ramp — darkest to lightest
 const PALETTE = ['#234A73', '#2d5a80', '#376d8e', '#4582A9', '#5B9EC9', '#76a4c4', '#a3c2d9']
 
-// Derive XAxis props to prevent label crowding based on data density and axis type
+// Derive XAxis + chart margin props to prevent label crowding and SVG clipping.
+// Returns xAxis props to spread on <XAxis> and margin to merge into the chart's margin prop.
+// With textAnchor="end", rotated labels extend LEFT of their tick — the extra left margin
+// shifts the first bar rightward so its label doesn't clip outside the SVG boundary.
 function xAxisConfig(dataLength: number, axisType?: string) {
   const isCategorical = axisType !== 'temporal' && axisType !== 'numeric'
   if (isCategorical && dataLength > 8) {
-    return { angle: -40, textAnchor: 'end' as const, height: 80, interval: 0, tick: { fontSize: 11 } }
+    return {
+      xAxis:   { angle: -45, textAnchor: 'end' as const, height: 90, interval: 0, tick: { fontSize: 10 } },
+      cMargin: { left: 80 },
+    }
   }
   if (isCategorical && dataLength > 4) {
-    return { angle: -25, textAnchor: 'end' as const, height: 64, interval: 0, tick: { fontSize: 11 } }
+    return {
+      xAxis:   { angle: -35, textAnchor: 'end' as const, height: 75, interval: 0, tick: { fontSize: 11 } },
+      cMargin: { left: 60 },
+    }
   }
-  if (dataLength > 14) {
-    return { tick: { fontSize: 11 }, interval: Math.ceil(dataLength / 10) - 1 }
+  if (dataLength > 5) {
+    // Temporal / numeric with enough points to crowd — gentle tilt
+    return {
+      xAxis:   { angle: -20, textAnchor: 'end' as const, height: 50, interval: 0, tick: { fontSize: 11 } },
+      cMargin: { left: 10 },
+    }
   }
-  return { tick: { fontSize: 12 } }
+  return {
+    xAxis:   { tick: { fontSize: 12 } },
+    cMargin: {},
+  }
 }
 
 interface Props {
@@ -56,13 +72,16 @@ export default function ChartRenderer({ spec, data, loading, onDrillDown }: Prop
 
   const handleClick = onDrillDown ? (row: Record<string, unknown>) => onDrillDown(row) : undefined
 
+  const { xAxis: xAxisProps, cMargin } = xAxisConfig(data.length, spec.x_axis?.type)
+  const chartMargin = { top: 5, right: 20, bottom: 5, left: 5, ...cMargin }
+
   switch (spec.chart_type) {
     case 'line':
       return (
         <ResponsiveContainer width="100%" height={320}>
-          <LineChart data={data} onClick={handleClick ? (e) => e?.activePayload && handleClick(e.activePayload[0].payload as Record<string, unknown>) : undefined}>
+          <LineChart data={data} margin={chartMargin} onClick={handleClick ? (e) => e?.activePayload && handleClick(e.activePayload[0].payload as Record<string, unknown>) : undefined}>
             <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
-            <XAxis dataKey={xField} tickFormatter={xFormatter} {...xAxisConfig(data.length, spec.x_axis?.type)} />
+            <XAxis dataKey={xField} tickFormatter={xFormatter} {...xAxisProps} />
             <YAxis tickFormatter={yFormatter} tick={{ fontSize: 12 }} width={80} />
             <Tooltip formatter={(v: unknown, name: string) => [formatValue(v, spec.y_axis?.type), name]} />
             <Legend />
@@ -76,9 +95,9 @@ export default function ChartRenderer({ spec, data, loading, onDrillDown }: Prop
     case 'area':
       return (
         <ResponsiveContainer width="100%" height={320}>
-          <AreaChart data={data} onClick={handleClick ? (e) => e?.activePayload && handleClick(e.activePayload[0].payload as Record<string, unknown>) : undefined}>
+          <AreaChart data={data} margin={chartMargin} onClick={handleClick ? (e) => e?.activePayload && handleClick(e.activePayload[0].payload as Record<string, unknown>) : undefined}>
             <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
-            <XAxis dataKey={xField} tickFormatter={xFormatter} {...xAxisConfig(data.length, spec.x_axis?.type)} />
+            <XAxis dataKey={xField} tickFormatter={xFormatter} {...xAxisProps} />
             <YAxis tickFormatter={yFormatter} tick={{ fontSize: 12 }} width={80} />
             <Tooltip formatter={(v: unknown, name: string) => [formatValue(v, spec.y_axis?.type), name]} />
             <Legend />
@@ -92,9 +111,9 @@ export default function ChartRenderer({ spec, data, loading, onDrillDown }: Prop
     case 'bar':
       return (
         <ResponsiveContainer width="100%" height={320}>
-          <BarChart data={data} onClick={handleClick ? (e) => e?.activePayload && handleClick(e.activePayload[0].payload as Record<string, unknown>) : undefined}>
+          <BarChart data={data} margin={chartMargin} onClick={handleClick ? (e) => e?.activePayload && handleClick(e.activePayload[0].payload as Record<string, unknown>) : undefined}>
             <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
-            <XAxis dataKey={xField} tickFormatter={xFormatter} {...xAxisConfig(data.length, spec.x_axis?.type)} />
+            <XAxis dataKey={xField} tickFormatter={xFormatter} {...xAxisProps} />
             <YAxis tickFormatter={yFormatter} tick={{ fontSize: 12 }} width={80} />
             <Tooltip formatter={(v: unknown, name: string) => [formatValue(v, spec.y_axis?.type), name]} />
             <Legend />
@@ -108,9 +127,9 @@ export default function ChartRenderer({ spec, data, loading, onDrillDown }: Prop
     case 'stacked_bar':
       return (
         <ResponsiveContainer width="100%" height={320}>
-          <BarChart data={data} onClick={handleClick ? (e) => e?.activePayload && handleClick(e.activePayload[0].payload as Record<string, unknown>) : undefined}>
+          <BarChart data={data} margin={chartMargin} onClick={handleClick ? (e) => e?.activePayload && handleClick(e.activePayload[0].payload as Record<string, unknown>) : undefined}>
             <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
-            <XAxis dataKey={xField} tickFormatter={xFormatter} {...xAxisConfig(data.length, spec.x_axis?.type)} />
+            <XAxis dataKey={xField} tickFormatter={xFormatter} {...xAxisProps} />
             <YAxis tickFormatter={yFormatter} tick={{ fontSize: 12 }} width={80} />
             <Tooltip formatter={(v: unknown, name: string) => [formatValue(v, spec.y_axis?.type), name]} />
             <Legend />
@@ -152,9 +171,9 @@ export default function ChartRenderer({ spec, data, loading, onDrillDown }: Prop
     case 'scatter':
       return (
         <ResponsiveContainer width="100%" height={320}>
-          <ScatterChart>
+          <ScatterChart margin={chartMargin}>
             <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
-            <XAxis dataKey={xField} name={spec.x_axis?.label} tickFormatter={xFormatter} {...xAxisConfig(data.length, spec.x_axis?.type)} />
+            <XAxis dataKey={xField} name={spec.x_axis?.label} tickFormatter={xFormatter} {...xAxisProps} />
             <YAxis dataKey={yField} name={spec.y_axis?.label} tickFormatter={yFormatter} tick={{ fontSize: 12 }} width={80} />
             <Tooltip cursor={{ strokeDasharray: '3 3' }} />
             <Scatter data={data} fill={PALETTE[0]} onClick={handleClick} />
