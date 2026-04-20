@@ -1,0 +1,23 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(cd \"/c/claude/CaterTrax Dashboard\" && npm create vite@latest . -- --template react-ts 2>&1)",
+      "Bash(cd \"/c/claude/CaterTrax Dashboard\" && echo \"y\" | npm create vite@latest . -- --template react-ts 2>&1)",
+      "Bash(cd \"/c/claude/CaterTrax Dashboard\" && printf 'y\\\\n' | npx create-vite@latest . --template react-ts 2>&1)",
+      "Bash(mv:*)",
+      "Bash(tail:*)",
+      "Bash(cd \"/c/claude/CaterTrax Dashboard\" && npm test 2>&1)",
+      "Bash(cd \"/c/claude/CaterTrax Dashboard\" && npx tsc -p tsconfig.app.json --noEmit 2>&1)",
+      "Bash(cd \"/c/claude/CaterTrax Dashboard\" && npm run build 2>&1)",
+      "Bash(cd \"/c/claude/CaterTrax Dashboard\" && npm run seed 2>&1)",
+      "Bash(cd \"C:\\\\claude\\\\CaterTrax Dashboard\" && npx tsc -p tsconfig.app.json --noEmit 2>&1)",
+      "Bash(cd \"C:\\\\claude\\\\CaterTrax Dashboard\" && npm run build 2>&1)",
+      "Bash(head:*)",
+      "Bash(python3:*)",
+      "Bash(node:*)",
+      "Bash(echo OK:*)",
+      "Bash(git init:*)",
+      "Bash(cd C:\\\\claude\\\\CaterTrax Dashboard:*)"
+    ]
+  }
+}
