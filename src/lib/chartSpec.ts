@@ -78,3 +78,48 @@ export function formatValue(value: unknown, type?: string): string {
 
   return String(value)
 }
+
+/**
+ * Shorten a categorical axis label using common English abbreviations,
+ * then hard-truncate at MAX_LABEL chars if still too long.
+ */
+const ABBREVS: Array<[RegExp, string]> = [
+  [/\bUniversit(?:y|ies)\b/gi,   'Univ.'],
+  [/\bDepartment\b/gi,            'Dept.'],
+  [/\bDivision\b/gi,              'Div.'],
+  [/\bAssociation\b/gi,           'Assoc.'],
+  [/\bInstitute\b/gi,             'Inst.'],
+  [/\bInternational\b/gi,         "Int'l"],
+  [/\bNational\b/gi,              'Natl.'],
+  [/\bCorporation\b/gi,           'Corp.'],
+  [/\bCompany\b/gi,               'Co.'],
+  [/\bGovernment\b/gi,            'Govt.'],
+  [/\bAdministration\b/gi,        'Admin.'],
+  [/\bManagement\b/gi,            'Mgmt.'],
+  [/\bTechnolog(?:y|ies)\b/gi,    'Tech.'],
+  [/\bServices\b/gi,              'Svcs.'],
+  [/\bFoundation\b/gi,            'Fdn.'],
+  [/\bCentr(?:e|er)\b/gi,         'Ctr.'],
+  [/\bMedical\b/gi,               'Med.'],
+  [/\bResearch\b/gi,              'Res.'],
+  [/\bEngineering\b/gi,           'Eng.'],
+  [/\bPsycholog(?:y|ical)\b/gi,   'Psych.'],
+  [/\bSciences?\b/gi,             'Sci.'],
+  [/\bCommunications?\b/gi,       'Comm.'],
+  [/\bOperations\b/gi,            'Ops.'],
+  [/\bHospital\b/gi,              'Hosp.'],
+  [/\bPublic\b/gi,                'Pub.'],
+]
+
+const MAX_LABEL = 20
+
+export function abbreviateLabel(label: string): string {
+  let s = label
+  for (const [pattern, replacement] of ABBREVS) {
+    s = s.replace(pattern, replacement)
+  }
+  if (s.length > MAX_LABEL) {
+    s = s.slice(0, MAX_LABEL - 1).trimEnd() + '…'
+  }
+  return s
+}

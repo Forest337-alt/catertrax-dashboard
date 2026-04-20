@@ -8,7 +8,7 @@ import {
   ResponsiveContainer,
 } from 'recharts'
 import type { ChartSpec } from '../../types'
-import { formatValue } from '../../lib/chartSpec'
+import { formatValue, abbreviateLabel } from '../../lib/chartSpec'
 import { ChartSkeleton } from '../common/Skeleton'
 
 // Brand navy ramp — darkest to lightest
@@ -68,7 +68,11 @@ export default function ChartRenderer({ spec, data, loading, onDrillDown }: Prop
   const series = spec.series ?? (yField ? [{ field: yField, label: yField, color: PALETTE[0] }] : [])
 
   const yFormatter = (v: unknown) => formatValue(v, spec.y_axis?.type)
-  const xFormatter = (v: unknown) => formatValue(v, spec.x_axis?.type)
+  const isCategoricalAxis = spec.x_axis?.type !== 'temporal' && spec.x_axis?.type !== 'numeric'
+  const xFormatter = (v: unknown) => {
+    const label = formatValue(v, spec.x_axis?.type)
+    return isCategoricalAxis && data.length > 4 ? abbreviateLabel(label) : label
+  }
 
   const handleClick = onDrillDown ? (row: Record<string, unknown>) => onDrillDown(row) : undefined
 
