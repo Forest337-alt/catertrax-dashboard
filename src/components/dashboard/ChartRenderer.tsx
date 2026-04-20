@@ -18,10 +18,10 @@ const PALETTE = ['#234A73', '#2d5a80', '#376d8e', '#4582A9', '#5B9EC9', '#76a4c4
 function xAxisConfig(dataLength: number, axisType?: string) {
   const isCategorical = axisType !== 'temporal' && axisType !== 'numeric'
   if (isCategorical && dataLength > 8) {
-    return { angle: -40, tick: { fontSize: 11, textAnchor: 'end' as const }, height: 72, interval: 0 }
+    return { angle: -40, textAnchor: 'end' as const, height: 80, interval: 0, tick: { fontSize: 11 } }
   }
-  if (isCategorical && dataLength > 5) {
-    return { angle: -25, tick: { fontSize: 11, textAnchor: 'end' as const }, height: 56, interval: 0 }
+  if (isCategorical && dataLength > 4) {
+    return { angle: -25, textAnchor: 'end' as const, height: 64, interval: 0, tick: { fontSize: 11 } }
   }
   if (dataLength > 14) {
     return { tick: { fontSize: 11 }, interval: Math.ceil(dataLength / 10) - 1 }
