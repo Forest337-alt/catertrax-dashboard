@@ -14,6 +14,21 @@ import { ChartSkeleton } from '../common/Skeleton'
 // Brand navy ramp — darkest to lightest
 const PALETTE = ['#234A73', '#2d5a80', '#376d8e', '#4582A9', '#5B9EC9', '#76a4c4', '#a3c2d9']
 
+// Derive XAxis props to prevent label crowding based on data density and axis type
+function xAxisConfig(dataLength: number, axisType?: string) {
+  const isCategorical = axisType !== 'temporal' && axisType !== 'numeric'
+  if (isCategorical && dataLength > 8) {
+    return { angle: -40, tick: { fontSize: 11, textAnchor: 'end' as const }, height: 72, interval: 0 }
+  }
+  if (isCategorical && dataLength > 5) {
+    return { angle: -25, tick: { fontSize: 11, textAnchor: 'end' as const }, height: 56, interval: 0 }
+  }
+  if (dataLength > 14) {
+    return { tick: { fontSize: 11 }, interval: Math.ceil(dataLength / 10) - 1 }
+  }
+  return { tick: { fontSize: 12 } }
+}
+
 interface Props {
   spec: ChartSpec
   data: Record<string, unknown>[]
@@ -47,7 +62,7 @@ export default function ChartRenderer({ spec, data, loading, onDrillDown }: Prop
         <ResponsiveContainer width="100%" height={320}>
           <LineChart data={data} onClick={handleClick ? (e) => e?.activePayload && handleClick(e.activePayload[0].payload as Record<string, unknown>) : undefined}>
             <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
-            <XAxis dataKey={xField} tickFormatter={xFormatter} tick={{ fontSize: 12 }} />
+            <XAxis dataKey={xField} tickFormatter={xFormatter} {...xAxisConfig(data.length, spec.x_axis?.type)} />
             <YAxis tickFormatter={yFormatter} tick={{ fontSize: 12 }} width={80} />
             <Tooltip formatter={(v: unknown, name: string) => [formatValue(v, spec.y_axis?.type), name]} />
             <Legend />
@@ -63,7 +78,7 @@ export default function ChartRenderer({ spec, data, loading, onDrillDown }: Prop
         <ResponsiveContainer width="100%" height={320}>
           <AreaChart data={data} onClick={handleClick ? (e) => e?.activePayload && handleClick(e.activePayload[0].payload as Record<string, unknown>) : undefined}>
             <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
-            <XAxis dataKey={xField} tickFormatter={xFormatter} tick={{ fontSize: 12 }} />
+            <XAxis dataKey={xField} tickFormatter={xFormatter} {...xAxisConfig(data.length, spec.x_axis?.type)} />
             <YAxis tickFormatter={yFormatter} tick={{ fontSize: 12 }} width={80} />
             <Tooltip formatter={(v: unknown, name: string) => [formatValue(v, spec.y_axis?.type), name]} />
             <Legend />
@@ -79,7 +94,7 @@ export default function ChartRenderer({ spec, data, loading, onDrillDown }: Prop
         <ResponsiveContainer width="100%" height={320}>
           <BarChart data={data} onClick={handleClick ? (e) => e?.activePayload && handleClick(e.activePayload[0].payload as Record<string, unknown>) : undefined}>
             <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
-            <XAxis dataKey={xField} tickFormatter={xFormatter} tick={{ fontSize: 12 }} />
+            <XAxis dataKey={xField} tickFormatter={xFormatter} {...xAxisConfig(data.length, spec.x_axis?.type)} />
             <YAxis tickFormatter={yFormatter} tick={{ fontSize: 12 }} width={80} />
             <Tooltip formatter={(v: unknown, name: string) => [formatValue(v, spec.y_axis?.type), name]} />
             <Legend />
@@ -95,7 +110,7 @@ export default function ChartRenderer({ spec, data, loading, onDrillDown }: Prop
         <ResponsiveContainer width="100%" height={320}>
           <BarChart data={data} onClick={handleClick ? (e) => e?.activePayload && handleClick(e.activePayload[0].payload as Record<string, unknown>) : undefined}>
             <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
-            <XAxis dataKey={xField} tickFormatter={xFormatter} tick={{ fontSize: 12 }} />
+            <XAxis dataKey={xField} tickFormatter={xFormatter} {...xAxisConfig(data.length, spec.x_axis?.type)} />
             <YAxis tickFormatter={yFormatter} tick={{ fontSize: 12 }} width={80} />
             <Tooltip formatter={(v: unknown, name: string) => [formatValue(v, spec.y_axis?.type), name]} />
             <Legend />
@@ -139,7 +154,7 @@ export default function ChartRenderer({ spec, data, loading, onDrillDown }: Prop
         <ResponsiveContainer width="100%" height={320}>
           <ScatterChart>
             <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
-            <XAxis dataKey={xField} name={spec.x_axis?.label} tickFormatter={xFormatter} tick={{ fontSize: 12 }} />
+            <XAxis dataKey={xField} name={spec.x_axis?.label} tickFormatter={xFormatter} {...xAxisConfig(data.length, spec.x_axis?.type)} />
             <YAxis dataKey={yField} name={spec.y_axis?.label} tickFormatter={yFormatter} tick={{ fontSize: 12 }} width={80} />
             <Tooltip cursor={{ strokeDasharray: '3 3' }} />
             <Scatter data={data} fill={PALETTE[0]} onClick={handleClick} />
