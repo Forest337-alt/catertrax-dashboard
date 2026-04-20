@@ -110,6 +110,44 @@ export interface QueryLog {
   created_at: string
 }
 
+// ─── Insights ─────────────────────────────────────────────────────────────────
+
+export type InsightPriority = 'high' | 'medium' | 'low'
+export type InsightConfidence = 'High' | 'Medium' | 'Low'
+export type InsightFeedbackAction = 'accepted' | 'saved' | 'snoozed' | 'dismissed'
+
+export interface InsightEvidence {
+  label: string
+  value: string
+}
+
+export interface Insight {
+  id: string
+  site_id: string
+  insight_type: string
+  priority: InsightPriority
+  confidence: InsightConfidence
+  category: string
+  headline: string
+  observation: string
+  interpretation: string
+  recommendation: string
+  evidence: InsightEvidence[]
+  action_label: string | null
+  active: boolean
+  generated_at: string
+  expires_at: string
+}
+
+export interface InsightFeedback {
+  id: string
+  insight_id: string
+  session_user_id: string
+  action: InsightFeedbackAction
+  snoozed_until: string | null
+  created_at: string
+}
+
 // ─── Email digest ─────────────────────────────────────────────────────────────
 
 export interface EmailDigest {

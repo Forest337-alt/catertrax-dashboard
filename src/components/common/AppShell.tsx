@@ -1,5 +1,9 @@
+import { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { useSession } from '../../lib/session'
+import { useInsights } from '../../lib/useInsights'
+import SoWhatButton from '../insights/SoWhatButton'
+import SoWhatPanel from '../insights/SoWhatPanel'
 import clsx from 'clsx'
 
 interface Props {
@@ -10,6 +14,9 @@ interface Props {
 export default function AppShell({ children, className }: Props) {
   const { user, switchUser } = useSession()
   const navigate = useNavigate()
+  const [panelOpen, setPanelOpen] = useState(false)
+
+  const { insights, loading: insightsLoading, totalActive, submitFeedback } = useInsights()
 
   return (
     <div className="min-h-screen flex flex-col bg-white">
@@ -52,6 +59,19 @@ export default function AppShell({ children, className }: Props) {
 
       {/* Main content */}
       <main className={clsx('flex-1', className)}>{children}</main>
+
+      {/* Floating insights button */}
+      <SoWhatButton count={totalActive} onClick={() => setPanelOpen(true)} />
+
+      {/* Insights panel */}
+      {panelOpen && (
+        <SoWhatPanel
+          insights={insights}
+          loading={insightsLoading}
+          onAction={(id, action) => submitFeedback(id, action)}
+          onClose={() => setPanelOpen(false)}
+        />
+      )}
     </div>
   )
 }
