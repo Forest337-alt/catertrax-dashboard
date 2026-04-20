@@ -22,14 +22,14 @@ function xAxisConfig(dataLength: number, axisType?: string) {
   const isCategorical = axisType !== 'temporal' && axisType !== 'numeric'
   if (isCategorical && dataLength > 8) {
     return {
-      xAxis:   { angle: -45, textAnchor: 'end' as const, height: 90, interval: 0, tick: { fontSize: 10 } },
-      cMargin: { left: 80 },
+      xAxis:   { angle: -50, textAnchor: 'end' as const, height: 90, interval: 0, tick: { fontSize: 10 } },
+      cMargin: { left: 30 },
     }
   }
   if (isCategorical && dataLength > 4) {
     return {
-      xAxis:   { angle: -35, textAnchor: 'end' as const, height: 75, interval: 0, tick: { fontSize: 11 } },
-      cMargin: { left: 60 },
+      xAxis:   { angle: -45, textAnchor: 'end' as const, height: 80, interval: 0, tick: { fontSize: 11 } },
+      cMargin: { left: 15 },
     }
   }
   if (dataLength > 5) {
