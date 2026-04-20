@@ -53,7 +53,7 @@ export default function ChartRenderer({ spec, data, loading, onDrillDown }: Prop
             <Tooltip formatter={(v: unknown, name: string) => [formatValue(v, spec.y_axis?.type), name]} />
             <Legend />
             {series.map((s, i) => (
-              <Line key={s.field} type="monotone" dataKey={s.field} name={s.label} stroke={s.color ?? PALETTE[i]} dot={false} strokeWidth={2} />
+              <Line key={s.field} type="monotone" dataKey={s.field} name={s.label} stroke={PALETTE[i % PALETTE.length]} dot={false} strokeWidth={2} />
             ))}
           </LineChart>
         </ResponsiveContainer>
@@ -69,7 +69,7 @@ export default function ChartRenderer({ spec, data, loading, onDrillDown }: Prop
             <Tooltip formatter={(v: unknown, name: string) => [formatValue(v, spec.y_axis?.type), name]} />
             <Legend />
             {series.map((s, i) => (
-              <Area key={s.field} type="monotone" dataKey={s.field} name={s.label} stroke={s.color ?? PALETTE[i]} fill={s.color ?? PALETTE[i]} fillOpacity={0.15} strokeWidth={2} />
+              <Area key={s.field} type="monotone" dataKey={s.field} name={s.label} stroke={PALETTE[i % PALETTE.length]} fill={PALETTE[i % PALETTE.length]} fillOpacity={0.15} strokeWidth={2} />
             ))}
           </AreaChart>
         </ResponsiveContainer>
@@ -85,7 +85,7 @@ export default function ChartRenderer({ spec, data, loading, onDrillDown }: Prop
             <Tooltip formatter={(v: unknown, name: string) => [formatValue(v, spec.y_axis?.type), name]} />
             <Legend />
             {series.map((s, i) => (
-              <Bar key={s.field} dataKey={s.field} name={s.label} fill={s.color ?? PALETTE[i]} radius={[4, 4, 0, 0]} />
+              <Bar key={s.field} dataKey={s.field} name={s.label} fill={PALETTE[i % PALETTE.length]} radius={[4, 4, 0, 0]} />
             ))}
           </BarChart>
         </ResponsiveContainer>
@@ -101,7 +101,7 @@ export default function ChartRenderer({ spec, data, loading, onDrillDown }: Prop
             <Tooltip formatter={(v: unknown, name: string) => [formatValue(v, spec.y_axis?.type), name]} />
             <Legend />
             {series.map((s, i) => (
-              <Bar key={s.field} dataKey={s.field} name={s.label} fill={s.color ?? PALETTE[i]} stackId="a" />
+              <Bar key={s.field} dataKey={s.field} name={s.label} fill={PALETTE[i % PALETTE.length]} stackId="a" />
             ))}
           </BarChart>
         </ResponsiveContainer>
@@ -143,7 +143,7 @@ export default function ChartRenderer({ spec, data, loading, onDrillDown }: Prop
             <XAxis dataKey={xField} name={spec.x_axis?.label} tickFormatter={xFormatter} tick={{ fontSize: 12 }} />
             <YAxis dataKey={yField} name={spec.y_axis?.label} tickFormatter={yFormatter} tick={{ fontSize: 12 }} width={80} />
             <Tooltip cursor={{ strokeDasharray: '3 3' }} />
-            <Scatter data={data} fill={series[0]?.color ?? PALETTE[0]} onClick={handleClick} />
+            <Scatter data={data} fill={PALETTE[0]} onClick={handleClick} />
           </ScatterChart>
         </ResponsiveContainer>
       )
