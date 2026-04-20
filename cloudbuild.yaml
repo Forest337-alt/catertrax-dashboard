@@ -1,0 +1,37 @@
+steps:
+  # Build the Docker image — pass VITE_ vars as build args so Vite bakes them in
+  - name: 'gcr.io/cloud-builders/docker'
+    args:
+      - build
+      - --build-arg=VITE_SUPABASE_URL=$_VITE_SUPABASE_URL
+      - --build-arg=VITE_SUPABASE_ANON_KEY=$_VITE_SUPABASE_ANON_KEY
+      - --build-arg=VITE_DEMO_SITE_ID=$_VITE_DEMO_SITE_ID
+      - -t
+      - us-central1-docker.pkg.dev/$PROJECT_ID/cloud-run-source-deploy/catertrax-dashboard:latest
+      - .
+
+  # Push to Artifact Registry
+  - name: 'gcr.io/cloud-builders/docker'
+    args:
+      - push
+      - us-central1-docker.pkg.dev/$PROJECT_ID/cloud-run-source-deploy/catertrax-dashboard:latest
+
+  # Deploy to Cloud Run
+  - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk:slim'
+    entrypoint: gcloud
+    args:
+      - run
+      - deploy
+      - catertrax-dashboard
+      - --image=us-central1-docker.pkg.dev/$PROJECT_ID/cloud-run-source-deploy/catertrax-dashboard:latest
+      - --region=us-central1
+      - --platform=managed
+      - --allow-unauthenticated
+
+substitutions:
+  _VITE_SUPABASE_URL: ''
+  _VITE_SUPABASE_ANON_KEY: ''
+  _VITE_DEMO_SITE_ID: ''
+
+options:
+  logging: GCS_ONLY
