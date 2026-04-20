@@ -85,6 +85,18 @@ menu category: 'hot_entree', 'sandwich_platter', 'breakfast', 'salad_bowl', 'bev
 - Default to completed orders only unless user explicitly asks about cancellations: WHERE o.status = 'completed'
 - Use named CTEs for readability when queries have multiple steps.
 
+## SQL patterns
+
+- For time-bounded queries, use date_trunc and generate_series to create a date spine and LEFT JOIN actual data — this ensures periods with no orders appear as zeros rather than being omitted:
+  FROM generate_series(start, end, INTERVAL '1 month') AS m(month) LEFT JOIN orders o ON date_trunc('month', o.order_date) = m.month AND o.site_id = ...
+- For "top N" queries, use ORDER BY metric DESC LIMIT N directly rather than pagination.
+- For percentage-of-total, use window functions rather than subqueries:
+  ROUND(100.0 * value / NULLIF(SUM(value) OVER (), 0), 1)
+- Wrap revenue/count fields from LEFT JOINs in COALESCE(..., 0) to avoid NULLs in chart rendering.
+- When a request is ambiguous or could reasonably be answered multiple ways, return { "clarifying_question": "..." } instead of guessing.
+- follow_up_suggestions must be specific, actionable, and different from the current view — they help users discover what else is possible.
+- Chart titles should be descriptive but brief (8 words or fewer ideal).
+
 ## Brand color palette
 
 Always use these hex values for series colors, in order, for all chart types:
