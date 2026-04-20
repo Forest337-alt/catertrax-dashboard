@@ -317,7 +317,7 @@ function OverviewPane({
   }
 
   return (
-    <div className="p-8 max-w-5xl">
+    <div className="px-8 pt-8 pb-24 max-w-5xl">
       <div className="mb-6">
         <h1 className="text-2xl font-bold text-gray-900">Dashboard Overview</h1>
         <p className="mt-1 text-gray-500">
@@ -423,7 +423,7 @@ function AiResultPane({
   }
 
   return (
-    <div className="p-8 max-w-5xl">
+    <div className="px-8 pt-8 pb-24 max-w-5xl">
 
       {/* Header */}
       <div className="flex items-start justify-between mb-6 gap-4">
@@ -528,7 +528,7 @@ function ViewDetailPane({ view }: { view: SavedView }) {
   }, [view.sql_query])
 
   return (
-    <div className="p-8 max-w-5xl">
+    <div className="px-8 pt-8 pb-24 max-w-5xl">
       <div className="flex items-start justify-between mb-6 gap-4">
         <div className="min-w-0">
           <div className="flex items-center gap-2 mb-2">
