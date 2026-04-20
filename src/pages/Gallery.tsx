@@ -33,7 +33,7 @@ const CHART_ICONS: Record<string, string> = {
 const REVENUE_TREND_SPEC: ChartSpec = {
   title: 'Revenue Trend', description: 'Monthly revenue for the last 6 months',
   sql: '', chart_type: 'area',
-  x_axis: { field: 'month', label: 'Month', type: 'categorical' },
+  x_axis: { field: 'month', label: 'Month', type: 'temporal' },
   y_axis: { field: 'revenue', label: 'Revenue', type: 'currency' },
   series: [{ field: 'revenue', label: 'Revenue', color: '#234A73' }],
 }
@@ -48,7 +48,7 @@ const TOP_ACCOUNTS_SPEC: ChartSpec = {
 
 const REVENUE_TREND_SQL = `
 SELECT
-  TO_CHAR(m.month, 'Mon YYYY') AS month,
+  TO_CHAR(m.month, 'YYYY-MM') AS month,
   COALESCE(ROUND(SUM(o.total), 0), 0) AS revenue
 FROM generate_series(
   DATE_TRUNC('month', CURRENT_DATE) - INTERVAL '5 months',
