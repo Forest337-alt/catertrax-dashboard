@@ -1,11 +1,15 @@
 import React, { useEffect, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
+import { format, differenceInCalendarDays } from 'date-fns'
 import AppShell from '../components/common/AppShell'
 import { supabase, executeQuery } from '../lib/supabase'
 import { Skeleton } from '../components/common/Skeleton'
 import KpiCard from '../components/dashboard/KpiCard'
 import MiniChart from '../components/dashboard/MiniChart'
 import ChartRenderer from '../components/dashboard/ChartRenderer'
+import DateRangeSelector from '../components/dashboard/DateRangeSelector'
+import type { DateRangeValue } from '../components/dashboard/DateRangeSelector'
+import { STANDARD_PRESETS, calcComparisonRange } from '../components/dashboard/DateRangeSelector/presetResolver'
 import { useDashboardKpis } from '../lib/useDashboardKpis'
 import type { DashboardKpis } from '../lib/useDashboardKpis'
 import { generateView } from '../lib/claude'
@@ -25,7 +29,6 @@ const CATEGORY_LABELS: Record<string, string> = {
 
 const CATEGORY_ORDER = ['orders_revenue', 'adoption_growth', 'menu_mix', 'financial']
 
-// Maps old [description-tag] seeds → new tab IDs (backward compat until re-seed)
 const LEGACY_TAG_MAP: Record<string, string> = {
   revenue:   'orders_revenue',
   adoption:  'adoption_growth',
@@ -38,40 +41,6 @@ const CHART_ICONS: Record<string, string> = {
   pie: '🥧', kpi_card: '🎯', table: '📋', heatmap: '🔥', scatter: '⚬',
 }
 
-const REVENUE_TREND_SPEC: ChartSpec = {
-  title: 'Revenue Trend', description: 'Monthly revenue for the last 6 months',
-  sql: '', chart_type: 'area',
-  x_axis: { field: 'month', label: 'Month', type: 'temporal' },
-  y_axis: { field: 'revenue', label: 'Revenue', type: 'currency' },
-  series: [{ field: 'revenue', label: 'Revenue', color: '#234A73' }],
-}
-
-const TOP_ACCOUNTS_SPEC: ChartSpec = {
-  title: 'Top 5 Accounts', description: 'Top accounts by total revenue (all time)',
-  sql: '', chart_type: 'bar',
-  x_axis: { field: 'account', label: 'Account', type: 'categorical' },
-  y_axis: { field: 'revenue', label: 'Revenue', type: 'currency' },
-  series: [{ field: 'revenue', label: 'Revenue', color: '#4582A9' }],
-}
-
-const REVENUE_TREND_SQL = `
-SELECT
-  TO_CHAR(m.month, 'YYYY-MM') AS month,
-  COALESCE(ROUND(SUM(o.total), 0), 0) AS revenue
-FROM generate_series(
-  DATE_TRUNC('month', CURRENT_DATE) - INTERVAL '5 months',
-  DATE_TRUNC('month', CURRENT_DATE),
-  INTERVAL '1 month'
-) AS m(month)
-LEFT JOIN orders o
-  ON DATE_TRUNC('month', o.order_date) = m.month
-  AND o.site_id = '${SITE_ID}'
-  AND o.status = 'completed'
-GROUP BY m.month
-ORDER BY m.month`
-
-const TOP_ACCOUNTS_SQL = `SELECT a.name AS account, ROUND(SUM(o.total), 0) AS revenue FROM orders o JOIN accounts a ON a.id = o.account_id WHERE o.site_id = '${SITE_ID}' AND o.status = 'completed' GROUP BY a.name ORDER BY revenue DESC LIMIT 5`
-
 const EXAMPLE_PROMPTS = [
   'Revenue by month this year',
   'Top 10 accounts by order count',
@@ -79,12 +48,126 @@ const EXAMPLE_PROMPTS = [
   'Most popular menu items this quarter',
 ]
 
+// ─── Date range helpers ────────────────────────────────────────────────────────
+
+/** Initialise DateRangeValue for last-30-days with prior-period comparison. */
+function makeDefaultDateRange(): DateRangeValue {
+  const tz = Intl.DateTimeFormat().resolvedOptions().timeZone
+  const p = STANDARD_PRESETS.find((p) => p.id === 'last_30')!
+  const [start, end] = p.resolve({
+    now: new Date(), timezone: tz,
+    fiscalYearStartMonth: 1, weekStartsOn: 0, excludeToday: true,
+  })
+  const comp = calcComparisonRange(start, end, 'prior_period')!
+  return {
+    preset: 'last_30', start, end, comparison: 'prior_period',
+    excludeToday: true, timezone: tz,
+    compStart: comp[0], compEnd: comp[1],
+  }
+}
+
+/** Format a Date to 'yyyy-MM-dd' for SQL injection. */
+const toSql = (d: Date) => format(d, 'yyyy-MM-dd')
+
+/** Human-readable label for the date range in pane headers. */
+function formatRangeLabel(start: Date, end: Date): string {
+  if (start.getFullYear() === end.getFullYear()) {
+    return `${format(start, 'MMM d')} – ${format(end, 'MMM d, yyyy')}`
+  }
+  return `${format(start, 'MMM d, yyyy')} – ${format(end, 'MMM d, yyyy')}`
+}
+
+/** Generate dynamic Revenue Trend SQL — groups by day/month/quarter based on range span. */
+function buildRevenueTrendSql(start: Date, end: Date): { sql: string; label: string; xLabel: string } {
+  const s = toSql(start)
+  const e = toSql(end)
+  const days = differenceInCalendarDays(end, start) + 1
+
+  if (days <= 35) {
+    return {
+      label: 'Revenue by Day',
+      xLabel: 'Date',
+      sql: `SELECT TO_CHAR(d.day, 'MM/DD') AS month,
+                   COALESCE(ROUND(SUM(o.total), 0), 0) AS revenue
+             FROM generate_series('${s}'::date, '${e}'::date, INTERVAL '1 day') AS d(day)
+             LEFT JOIN orders o
+               ON o.order_date::date = d.day
+               AND o.site_id = '${SITE_ID}'
+               AND o.status = 'completed'
+             GROUP BY d.day ORDER BY d.day LIMIT 500`,
+    }
+  }
+  if (days <= 400) {
+    return {
+      label: 'Revenue by Month',
+      xLabel: 'Month',
+      sql: `SELECT TO_CHAR(m.month, 'YYYY-MM') AS month,
+                   COALESCE(ROUND(SUM(o.total), 0), 0) AS revenue
+             FROM generate_series(
+               DATE_TRUNC('month', '${s}'::date),
+               DATE_TRUNC('month', '${e}'::date),
+               INTERVAL '1 month'
+             ) AS m(month)
+             LEFT JOIN orders o
+               ON DATE_TRUNC('month', o.order_date) = m.month
+               AND o.site_id = '${SITE_ID}'
+               AND o.status = 'completed'
+             GROUP BY m.month ORDER BY m.month LIMIT 500`,
+    }
+  }
+  return {
+    label: 'Revenue by Quarter',
+    xLabel: 'Quarter',
+    sql: `SELECT TO_CHAR(DATE_TRUNC('quarter', o.order_date), 'YYYY "Q"Q') AS month,
+                 ROUND(SUM(o.total), 0) AS revenue
+           FROM orders o
+           WHERE o.site_id = '${SITE_ID}' AND o.status = 'completed'
+             AND o.order_date >= '${s}'::date AND o.order_date <= '${e}'::date
+           GROUP BY DATE_TRUNC('quarter', o.order_date) ORDER BY 1 LIMIT 500`,
+  }
+}
+
+/** Generate dynamic Top Accounts SQL for the selected date range. */
+function buildTopAccountsSql(start: Date, end: Date): string {
+  return `SELECT a.name AS account, ROUND(SUM(o.total), 0) AS revenue
+          FROM orders o
+          JOIN accounts a ON a.id = o.account_id
+          WHERE o.site_id = '${SITE_ID}' AND o.status = 'completed'
+            AND o.order_date >= '${toSql(start)}'::date
+            AND o.order_date <= '${toSql(end)}'::date
+          GROUP BY a.name ORDER BY revenue DESC LIMIT 5`
+}
+
+// ─── Chart specs (static structure, SQL is generated dynamically) ─────────────
+
+function buildRevenueTrendSpec(label: string, xLabel: string): ChartSpec {
+  return {
+    title: label, description: '',
+    sql: '', chart_type: 'area',
+    x_axis: { field: 'month', label: xLabel, type: 'temporal' },
+    y_axis: { field: 'revenue', label: 'Revenue', type: 'currency' },
+    series: [{ field: 'revenue', label: 'Revenue', color: '#234A73' }],
+  }
+}
+
+const TOP_ACCOUNTS_SPEC: ChartSpec = {
+  title: 'Top 5 Accounts', description: '',
+  sql: '', chart_type: 'bar',
+  x_axis: { field: 'account', label: 'Account', type: 'categorical' },
+  y_axis: { field: 'revenue', label: 'Revenue', type: 'currency' },
+  series: [{ field: 'revenue', label: 'Revenue', color: '#4582A9' }],
+}
+
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
 export default function Gallery() {
   const navigate = useNavigate()
   const { user } = useSession()
-  const { kpis, loading: kpisLoading } = useDashboardKpis()
+
+  // Date range — drives Overview pane KPIs and mini charts
+  const [dateRange, setDateRange] = useState<DateRangeValue>(makeDefaultDateRange)
+
+  const { kpis, loading: kpisLoading } = useDashboardKpis(dateRange)
 
   // Suggested views
   const [views, setViews] = useState<SavedView[]>([])
@@ -246,10 +329,18 @@ export default function Gallery() {
     }
   }
 
+  // ── Current pane label (for mobile breadcrumb) ────────────────────────────
+  const currentTitle = selectedView?.name
+    ?? (selectedKpiTabId
+      ? `${CATEGORY_LABELS[selectedKpiTabId] ?? selectedKpiTabId} — Key Metrics`
+      : aiSpec
+        ? aiSpec.title
+        : 'Dashboard Overview')
+
   return (
     <AppShell className="flex overflow-hidden">
 
-      {/* Mobile backdrop — covers content area when sidebar is open */}
+      {/* Mobile backdrop */}
       {sidebarOpen && (
         <div
           className="fixed top-14 left-0 right-0 bottom-0 z-30 bg-black/40 md:hidden"
@@ -257,7 +348,7 @@ export default function Gallery() {
         />
       )}
 
-      {/* ── Left sidebar — fixed drawer on mobile, static on md+ ── */}
+      {/* ── Left sidebar ── */}
       <aside className={[
         'fixed top-14 left-0 bottom-0 z-40 w-72',
         'flex-shrink-0 bg-gray-50 border-r border-gray-200 flex flex-col overflow-hidden',
@@ -348,33 +439,49 @@ export default function Gallery() {
       {/* ── Right pane ── */}
       <div className="flex-1 overflow-y-auto bg-white min-w-0">
 
-        {/* Mobile top bar — hamburger + current view title */}
-        <div className="sticky top-0 z-20 flex items-center gap-3 h-12 px-4 bg-white border-b border-gray-100 md:hidden">
+        {/* ── Sticky top bar: mobile hamburger + date range selector ── */}
+        <div className="sticky top-0 z-20 flex items-center gap-3 px-4 py-2 bg-white border-b border-gray-100 min-h-[48px]">
+          {/* Mobile: hamburger button */}
           <button
             onClick={() => setSidebarOpen(true)}
-            className="p-1.5 -ml-1.5 rounded-lg text-gray-600 hover:bg-gray-100 transition-colors"
+            className="md:hidden p-1.5 -ml-1.5 rounded-lg text-gray-600 hover:bg-gray-100 transition-colors flex-shrink-0"
             aria-label="Open views menu"
           >
             <span className="text-xl leading-none">☰</span>
           </button>
-          <span className="text-sm font-semibold text-gray-800 truncate">
-            {selectedView?.name
-              ?? (selectedKpiTabId
-                ? `${CATEGORY_LABELS[selectedKpiTabId] ?? selectedKpiTabId} — Key Metrics`
-                : aiSpec
-                  ? aiSpec.title
-                  : 'Dashboard Overview')}
+
+          {/* Mobile: current view title */}
+          <span className="md:hidden flex-1 text-sm font-semibold text-gray-800 truncate">
+            {currentTitle}
           </span>
+
+          {/* Desktop: flexible space to push date picker right */}
+          <div className="hidden md:block flex-1" />
+
+          {/* Date range selector — always visible */}
+          <DateRangeSelector
+            value={dateRange}
+            onChange={setDateRange}
+            showComparison
+            showExcludeToday
+            className="flex-shrink-0"
+          />
         </div>
 
+        {/* ── Pane content ── */}
         {selectedView ? (
-          <ViewDetailPane key={selectedView.id} view={selectedView} />
+          <ViewDetailPane
+            key={selectedView.id}
+            view={selectedView}
+            dateRange={dateRange}
+          />
         ) : selectedKpiTabId ? (
           <KeyMetricsDashboardPane
             key={selectedKpiTabId}
             tabId={selectedKpiTabId}
             label={CATEGORY_LABELS[selectedKpiTabId] ?? selectedKpiTabId}
             views={(grouped[selectedKpiTabId] ?? []).filter((v) => v.chart_spec.chart_type === 'kpi_card')}
+            dateRange={dateRange}
           />
         ) : aiSpec ? (
           <AiResultPane
@@ -392,6 +499,7 @@ export default function Gallery() {
           <OverviewPane
             kpis={kpis}
             kpisLoading={kpisLoading}
+            dateRange={dateRange}
             onSubmit={handleAiSubmit}
             thinking={aiThinking}
             error={aiError}
@@ -413,17 +521,35 @@ export default function Gallery() {
   )
 }
 
+// ─── Date range badge (shared by non-overview panes) ─────────────────────────
+
+function DateRangeBadge({ start, end }: { start: Date; end: Date }) {
+  return (
+    <span className="inline-flex items-center gap-1 text-xs text-primary-800 bg-primary-50 border border-primary-200 px-2.5 py-1 rounded-full">
+      <svg className="w-3 h-3 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+        <rect x="3" y="4" width="18" height="18" rx="2" ry="2" />
+        <line x1="16" y1="2" x2="16" y2="6" />
+        <line x1="8" y1="2" x2="8" y2="6" />
+        <line x1="3" y1="10" x2="21" y2="10" />
+      </svg>
+      {formatRangeLabel(start, end)}
+    </span>
+  )
+}
+
 // ─── Overview pane ────────────────────────────────────────────────────────────
 
 function OverviewPane({
   kpis,
   kpisLoading,
+  dateRange,
   onSubmit,
   thinking,
   error,
 }: {
   kpis: DashboardKpis
   kpisLoading: boolean
+  dateRange: DateRangeValue
   onSubmit: (text: string) => void
   thinking: boolean
   error: string | null
@@ -436,6 +562,17 @@ function OverviewPane({
     setInput('')
   }
 
+  // Derive comparison label for KPI trend text
+  const compLabel =
+    dateRange.comparison === 'prior_year' ? 'vs prior year' :
+    dateRange.comparison === 'prior_period' ? 'vs prior period' :
+    'vs prior period'
+
+  // Dynamic mini-chart SQL based on selected date range
+  const { sql: trendSql, label: trendLabel, xLabel } = buildRevenueTrendSql(dateRange.start, dateRange.end)
+  const topAccountsSql = buildTopAccountsSql(dateRange.start, dateRange.end)
+  const trendSpec = buildRevenueTrendSpec(trendLabel, xLabel)
+
   return (
     <div className="px-4 pt-4 pb-20 sm:px-8 sm:pt-8 sm:pb-24 max-w-5xl">
       <div className="mb-6">
@@ -445,18 +582,28 @@ function OverviewPane({
         </p>
       </div>
 
-      {/* KPI cards */}
+      {/* KPI cards — driven by the selected date range */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-        <KpiCard label="Revenue this month"        value={kpis.revenue}    type="currency" loading={kpisLoading} trend={kpis.revenueTrend}    trendLabel="vs same period last mo." />
-        <KpiCard label="Orders this month"         value={kpis.orderCount} type="numeric"  loading={kpisLoading} trend={kpis.orderCountTrend} trendLabel="vs same period last mo." />
-        <KpiCard label="On-time fulfillment (30d)" value={kpis.onTimeRate} type="percent"  loading={kpisLoading} trend={kpis.onTimeRateTrend} trendLabel="vs prior 30d" />
-        <KpiCard label="Avg order value (30d)"     value={kpis.aov}        type="currency" loading={kpisLoading} trend={kpis.aovTrend}        trendLabel="vs prior 30d" />
+        <KpiCard label="Revenue"        value={kpis.revenue}    type="currency" loading={kpisLoading} trend={kpis.revenueTrend}    trendLabel={compLabel} />
+        <KpiCard label="Orders"         value={kpis.orderCount} type="numeric"  loading={kpisLoading} trend={kpis.orderCountTrend} trendLabel={compLabel} />
+        <KpiCard label="On-time rate"   value={kpis.onTimeRate} type="percent"  loading={kpisLoading} trend={kpis.onTimeRateTrend} trendLabel={compLabel} />
+        <KpiCard label="Avg order value" value={kpis.aov}       type="currency" loading={kpisLoading} trend={kpis.aovTrend}        trendLabel={compLabel} />
       </div>
 
-      {/* Mini charts */}
+      {/* Mini charts — driven by the selected date range */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-8">
-        <MiniChart title="Revenue Trend — last 6 months" sql={REVENUE_TREND_SQL} spec={REVENUE_TREND_SPEC} />
-        <MiniChart title="Top 5 Accounts by Revenue"     sql={TOP_ACCOUNTS_SQL}  spec={TOP_ACCOUNTS_SPEC} />
+        <MiniChart
+          key={`trend-${toSql(dateRange.start)}-${toSql(dateRange.end)}`}
+          title={trendLabel}
+          sql={trendSql}
+          spec={trendSpec}
+        />
+        <MiniChart
+          key={`accounts-${toSql(dateRange.start)}-${toSql(dateRange.end)}`}
+          title="Top 5 Accounts by Revenue"
+          sql={topAccountsSql}
+          spec={TOP_ACCOUNTS_SPEC}
+        />
       </div>
 
       {/* AI prompt */}
@@ -634,13 +781,15 @@ function AiResultPane({
 
 // ─── View detail pane ─────────────────────────────────────────────────────────
 
-function ViewDetailPane({ view }: { view: SavedView }) {
+function ViewDetailPane({ view, dateRange }: { view: SavedView; dateRange: DateRangeValue }) {
   const [data, setData] = useState<Record<string, unknown>[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
     let cancelled = false
+    setLoading(true)
+    setError(null)
     executeQuery(view.sql_query)
       .then((rows) => { if (!cancelled) { setData(rows); setLoading(false) } })
       .catch((err) => { if (!cancelled) { setError(err instanceof Error ? err.message : 'Query failed'); setLoading(false) } })
@@ -649,12 +798,13 @@ function ViewDetailPane({ view }: { view: SavedView }) {
 
   return (
     <div className="px-4 pt-4 pb-20 sm:px-8 sm:pt-8 sm:pb-24 max-w-5xl">
-      <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between mb-6 gap-3">
+      <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between mb-4 gap-3">
         <div className="min-w-0">
-          <div className="flex items-center gap-2 mb-2">
+          <div className="flex flex-wrap items-center gap-2 mb-2">
             <span className="text-xs text-gray-400 bg-gray-100 px-2 py-0.5 rounded-full capitalize">
               {view.chart_spec.chart_type.replace('_', ' ')}
             </span>
+            <DateRangeBadge start={dateRange.start} end={dateRange.end} />
           </div>
           <h1 className="text-2xl font-bold text-gray-900 truncate">{view.name}</h1>
           <p className="mt-1 text-gray-500 text-sm">{view.chart_spec.description}</p>
@@ -785,10 +935,11 @@ type MetricState = {
   error: string | null
 }
 
-function KeyMetricsDashboardPane({ tabId, label, views }: {
+function KeyMetricsDashboardPane({ tabId, label, views, dateRange }: {
   tabId: string
   label: string
   views: SavedView[]
+  dateRange: DateRangeValue
 }) {
   const [metrics, setMetrics] = useState<MetricState[]>(
     views.map((v) => ({ view: v, value: null, priorValue: null, loading: true, error: null }))
@@ -827,7 +978,6 @@ function KeyMetricsDashboardPane({ tabId, label, views }: {
     financial:       'Financial pulse — revenue, budget attainment, margin, and food cost.',
   }
 
-  // Responsive grid: 2-col on mobile, up to 4 on large screens
   const gridCols =
     views.length <= 2 ? 'grid-cols-2' :
     views.length === 3 ? 'grid-cols-2 md:grid-cols-3' :
@@ -837,7 +987,10 @@ function KeyMetricsDashboardPane({ tabId, label, views }: {
     <div className="px-4 pt-4 pb-20 sm:px-8 sm:pt-8 sm:pb-24 max-w-5xl">
       {/* Header */}
       <div className="mb-7">
-        <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-1">{label}</p>
+        <div className="flex flex-wrap items-center gap-2 mb-1">
+          <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider">{label}</p>
+          <DateRangeBadge start={dateRange.start} end={dateRange.end} />
+        </div>
         <h1 className="text-2xl font-bold text-gray-900">Key Metrics</h1>
         <p className="mt-1 text-sm text-gray-500">{TAB_DESCRIPTIONS[tabId] ?? 'Summary metrics for this category.'}</p>
       </div>
@@ -855,7 +1008,6 @@ function KeyMetricsDashboardPane({ tabId, label, views }: {
 
           return (
             <div key={view.id} className="bg-white rounded-xl border border-gray-200 overflow-hidden shadow-sm">
-              {/* Colored top accent */}
               <div className="h-1.5" style={{ backgroundColor: accent }} />
 
               <div className="p-5">
@@ -869,26 +1021,18 @@ function KeyMetricsDashboardPane({ tabId, label, views }: {
                   <p className="text-xs text-red-500 mt-1">{error}</p>
                 ) : (
                   <>
-                    {/* Metric name */}
                     <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3 leading-tight">
                       {view.name}
                     </p>
-
-                    {/* Value */}
                     <p className="text-3xl font-bold text-gray-900 tabular-nums tracking-tight mb-3">
                       {formatMetricValue(value, type)}
                     </p>
-
-                    {/* Trend badge */}
                     {trend !== null ? (
                       <span className={[
                         'inline-flex items-center gap-1 text-xs font-semibold px-2.5 py-1 rounded-full',
-                        trend >= 0
-                          ? 'bg-emerald-50 text-emerald-700'
-                          : 'bg-red-50 text-red-600',
+                        trend >= 0 ? 'bg-emerald-50 text-emerald-700' : 'bg-red-50 text-red-600',
                       ].join(' ')}>
-                        {trend >= 0 ? '↑' : '↓'}
-                        {' '}{Math.abs(trend).toFixed(1)}%
+                        {trend >= 0 ? '↑' : '↓'} {Math.abs(trend).toFixed(1)}%
                         <span className="font-normal text-gray-400 ml-0.5">vs prior year</span>
                       </span>
                     ) : (
@@ -896,8 +1040,6 @@ function KeyMetricsDashboardPane({ tabId, label, views }: {
                         No prior-year data
                       </span>
                     )}
-
-                    {/* Description */}
                     <p className="mt-3 text-xs text-gray-400 leading-relaxed">
                       {view.chart_spec.description}
                     </p>
@@ -909,7 +1051,6 @@ function KeyMetricsDashboardPane({ tabId, label, views }: {
         })}
       </div>
 
-      {/* Hint */}
       <p className="mt-6 text-xs text-gray-400">
         Select an individual view from the sidebar to explore charts and tables for this category.
       </p>

@@ -1,5 +1,7 @@
 import { useState, useEffect } from 'react'
+import { format } from 'date-fns'
 import { executeQuery } from './supabase'
+import type { DateRangeValue } from '../components/dashboard/DateRangeSelector/types'
 
 const SITE_ID = import.meta.env.VITE_DEMO_SITE_ID as string
 
@@ -19,13 +21,24 @@ function computeTrend(current: number | null, prior: number | null): number | nu
   return ((current - prior) / prior) * 100
 }
 
-export function useDashboardKpis() {
+/** Build a SQL date filter clause for the given ISO date strings. */
+function dateClause(startStr: string, endStr: string): string {
+  return `AND order_date >= '${startStr}'::date AND order_date <= '${endStr}'::date`
+}
+
+export function useDashboardKpis(dateRange?: DateRangeValue) {
   const [kpis, setKpis] = useState<DashboardKpis>({
     revenue: null, orderCount: null, onTimeRate: null, aov: null,
     revenueTrend: null, orderCountTrend: null, onTimeRateTrend: null, aovTrend: null,
   })
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+
+  // Cache key drives refetch when date range changes
+  const startStr  = dateRange?.start      ? format(dateRange.start,      'yyyy-MM-dd') : null
+  const endStr    = dateRange?.end        ? format(dateRange.end,        'yyyy-MM-dd') : null
+  const cStartStr = dateRange?.compStart  ? format(dateRange.compStart,  'yyyy-MM-dd') : null
+  const cEndStr   = dateRange?.compEnd    ? format(dateRange.compEnd,    'yyyy-MM-dd') : null
 
   useEffect(() => {
     if (!SITE_ID) {
@@ -34,8 +47,25 @@ export function useDashboardKpis() {
       return
     }
 
+    setLoading(true)
+
     async function fetchKpis() {
       try {
+        // ── Date filter for current period ──────────────────────────────────────
+        const primaryFilter = startStr && endStr
+          ? dateClause(startStr, endStr)
+          : `AND DATE_TRUNC('month', order_date) = DATE_TRUNC('month', CURRENT_DATE)`
+
+        // ── Date filter for comparison period ───────────────────────────────────
+        const compFilter = cStartStr && cEndStr
+          ? dateClause(cStartStr, cEndStr)
+          : startStr && endStr
+            // No comparison period set: shift the primary period back by same length
+            ? null
+            : `AND order_date >= DATE_TRUNC('month', CURRENT_DATE) - INTERVAL '1 month'
+               AND order_date <  DATE_TRUNC('month', CURRENT_DATE)
+               AND EXTRACT(DAY FROM order_date) <= EXTRACT(DAY FROM CURRENT_DATE)`
+
         const [
           revenueRows, countRows, onTimeRows, aovRows,
           prevRevenueRows, prevCountRows, prevOnTimeRows, prevAovRows,
@@ -44,67 +74,56 @@ export function useDashboardKpis() {
           executeQuery<{ revenue: string }>(
             `SELECT ROUND(SUM(total), 0) AS revenue
              FROM orders
-             WHERE site_id = '${SITE_ID}'
-               AND status = 'completed'
-               AND DATE_TRUNC('month', order_date) = DATE_TRUNC('month', CURRENT_DATE)`
+             WHERE site_id = '${SITE_ID}' AND status = 'completed'
+             ${primaryFilter}`
           ),
           executeQuery<{ order_count: string }>(
             `SELECT COUNT(*) AS order_count
              FROM orders
-             WHERE site_id = '${SITE_ID}'
-               AND status = 'completed'
-               AND DATE_TRUNC('month', order_date) = DATE_TRUNC('month', CURRENT_DATE)`
+             WHERE site_id = '${SITE_ID}' AND status = 'completed'
+             ${primaryFilter}`
           ),
           executeQuery<{ on_time_rate: string }>(
             `SELECT ROUND(AVG(CASE WHEN fulfilled_on_time THEN 1.0 ELSE 0.0 END) * 100, 1) AS on_time_rate
              FROM orders
-             WHERE site_id = '${SITE_ID}'
-               AND status = 'completed'
-               AND order_date >= CURRENT_DATE - INTERVAL '30 days'`
+             WHERE site_id = '${SITE_ID}' AND status = 'completed'
+             ${primaryFilter}`
           ),
           executeQuery<{ aov: string }>(
             `SELECT ROUND(AVG(total), 0) AS aov
              FROM orders
-             WHERE site_id = '${SITE_ID}'
-               AND status = 'completed'
-               AND order_date >= CURRENT_DATE - INTERVAL '30 days'`
+             WHERE site_id = '${SITE_ID}' AND status = 'completed'
+             ${primaryFilter}`
           ),
-          // ── Prior period (same day-of-month range, one month back) ────────────
-          executeQuery<{ revenue: string }>(
+
+          // ── Comparison period ─────────────────────────────────────────────────
+          compFilter ? executeQuery<{ revenue: string }>(
             `SELECT ROUND(SUM(total), 0) AS revenue
              FROM orders
-             WHERE site_id = '${SITE_ID}'
-               AND status = 'completed'
-               AND order_date >= DATE_TRUNC('month', CURRENT_DATE) - INTERVAL '1 month'
-               AND order_date <  DATE_TRUNC('month', CURRENT_DATE)
-               AND EXTRACT(DAY FROM order_date) <= EXTRACT(DAY FROM CURRENT_DATE)`
-          ),
-          executeQuery<{ order_count: string }>(
+             WHERE site_id = '${SITE_ID}' AND status = 'completed'
+             ${compFilter}`
+          ) : Promise.resolve([]),
+
+          compFilter ? executeQuery<{ order_count: string }>(
             `SELECT COUNT(*) AS order_count
              FROM orders
-             WHERE site_id = '${SITE_ID}'
-               AND status = 'completed'
-               AND order_date >= DATE_TRUNC('month', CURRENT_DATE) - INTERVAL '1 month'
-               AND order_date <  DATE_TRUNC('month', CURRENT_DATE)
-               AND EXTRACT(DAY FROM order_date) <= EXTRACT(DAY FROM CURRENT_DATE)`
-          ),
-          // ── Prior 30-day window (days 60-31 ago) ──────────────────────────────
-          executeQuery<{ on_time_rate: string }>(
+             WHERE site_id = '${SITE_ID}' AND status = 'completed'
+             ${compFilter}`
+          ) : Promise.resolve([]),
+
+          compFilter ? executeQuery<{ on_time_rate: string }>(
             `SELECT ROUND(AVG(CASE WHEN fulfilled_on_time THEN 1.0 ELSE 0.0 END) * 100, 1) AS on_time_rate
              FROM orders
-             WHERE site_id = '${SITE_ID}'
-               AND status = 'completed'
-               AND order_date >= CURRENT_DATE - INTERVAL '60 days'
-               AND order_date <  CURRENT_DATE - INTERVAL '30 days'`
-          ),
-          executeQuery<{ aov: string }>(
+             WHERE site_id = '${SITE_ID}' AND status = 'completed'
+             ${compFilter}`
+          ) : Promise.resolve([]),
+
+          compFilter ? executeQuery<{ aov: string }>(
             `SELECT ROUND(AVG(total), 0) AS aov
              FROM orders
-             WHERE site_id = '${SITE_ID}'
-               AND status = 'completed'
-               AND order_date >= CURRENT_DATE - INTERVAL '60 days'
-               AND order_date <  CURRENT_DATE - INTERVAL '30 days'`
-          ),
+             WHERE site_id = '${SITE_ID}' AND status = 'completed'
+             ${compFilter}`
+          ) : Promise.resolve([]),
         ])
 
         const revenue    = revenueRows[0]?.revenue      != null ? Number(revenueRows[0].revenue)          : null
@@ -132,7 +151,8 @@ export function useDashboardKpis() {
     }
 
     fetchKpis()
-  }, [])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [startStr, endStr, cStartStr, cEndStr])
 
   return { kpis, loading, error }
 }
