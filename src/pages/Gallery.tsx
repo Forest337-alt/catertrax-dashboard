@@ -452,14 +452,6 @@ export default function Gallery() {
           )}
         </nav>
 
-        <div className="p-4 border-t border-gray-200">
-          <Link
-            to="/view/new"
-            className="block w-full text-center bg-primary-800 text-white text-sm font-semibold px-3 py-2 rounded-lg hover:bg-primary-700 transition-colors"
-          >
-            AI Builder →
-          </Link>
-        </div>
       </aside>
 
       {/* ── Right pane ── */}
