@@ -22,7 +22,7 @@ export default function AppShell({ children, className }: Props) {
     <div className="min-h-screen flex flex-col bg-white">
       {/* Header */}
       <header className="bg-primary-800 text-white border-b border-primary-900 shadow-sm">
-        <div className="max-w-screen-xl mx-auto px-4 sm:px-6 lg:px-8 h-14 flex items-center justify-between">
+        <div className="px-4 sm:px-6 lg:px-8 h-14 flex items-center justify-between">
           <div className="flex items-center gap-3 sm:gap-6">
             <Link to="/" className="flex items-center">
               <img
