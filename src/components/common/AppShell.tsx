@@ -24,7 +24,14 @@ export default function AppShell({ children, className }: Props) {
       <header className="bg-primary-800 text-white border-b border-primary-900 shadow-sm">
         <div className="px-4 sm:px-6 lg:px-8 h-14 flex items-center justify-between">
           <div className="flex items-center gap-3 sm:gap-6">
-            <Link to="/" className="flex items-center">
+            <Link
+              to="/"
+              className="flex items-center"
+              onClick={(e) => {
+                e.preventDefault()
+                navigate('/', { state: { reset: Date.now() } })
+              }}
+            >
               <img
                 src="/catertrax-logo.png"
                 alt="CaterTrax"

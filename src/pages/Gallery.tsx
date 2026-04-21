@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
+import { Link, useNavigate, useLocation } from 'react-router-dom'
 import { format, differenceInCalendarDays } from 'date-fns'
 import AppShell from '../components/common/AppShell'
 import { supabase, executeQuery } from '../lib/supabase'
@@ -162,6 +162,7 @@ const TOP_ACCOUNTS_SPEC: ChartSpec = {
 
 export default function Gallery() {
   const navigate = useNavigate()
+  const location = useLocation()
   const { user } = useSession()
 
   // Date range — drives Overview pane KPIs and mini charts
@@ -182,6 +183,17 @@ export default function Gallery() {
   const [aiHistory, setAiHistory] = useState<ChatMessage[]>([])
   const [aiThinking, setAiThinking] = useState(false)
   const [aiError, setAiError] = useState<string | null>(null)
+
+  // Reset to overview when logo is clicked (location.state.reset signal)
+  useEffect(() => {
+    if ((location.state as { reset?: number } | null)?.reset) {
+      setSelectedId(null)
+      setSelectedKpiTabId(null)
+      setAiSpec(null)
+      setAiHistory([])
+      setAiError(null)
+    }
+  }, [(location.state as { reset?: number } | null)?.reset])
 
   // Mobile sidebar state
   const [sidebarOpen, setSidebarOpen] = useState(false)
