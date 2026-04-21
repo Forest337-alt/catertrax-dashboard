@@ -11,6 +11,7 @@ import { faker } from '@faker-js/faker'
 import { readFileSync } from 'fs'
 import { resolve, dirname } from 'path'
 import { fileURLToPath } from 'url'
+import { buildSuggestedViews } from './suggestedViews.mjs'
 
 // ─── Config ──────────────────────────────────────────────────────────────────
 
@@ -461,6 +462,14 @@ async function main() {
 }
 
 async function seedSuggestedViews(sb, siteId) {
+  await sb.from('saved_views').delete().eq('is_suggested', true)
+  const { error } = await sb.from('saved_views').insert(buildSuggestedViews(siteId))
+  if (error) throw error
+  console.log('  ✓ 32 suggested views seeded')
+}
+
+// ─── Legacy inline views (replaced by suggestedViews.mjs) ─────────────────────
+async function _unusedLegacySeedSuggestedViews(sb, siteId) {
   const views = [
     // ─── Orders & Revenue ─────────────────────────────────────────────────────
     {

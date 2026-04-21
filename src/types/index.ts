@@ -24,6 +24,7 @@ export interface SeriesSpec {
   field: string
   label: string
   color?: string
+  type?: string   // 'currency' | 'percent' | 'numeric' | 'text' | 'trend_indicator'
 }
 
 export interface FilterApplied {
@@ -42,6 +43,11 @@ export interface ChartSpec {
   filters_applied?: FilterApplied[]
   drill_down_hint?: string
   follow_up_suggestions?: string[]
+  meta?: {
+    tab: 'orders_revenue' | 'adoption_growth' | 'menu_mix' | 'financial'
+    position: number
+    suggested: boolean
+  }
 }
 
 // ─── Session / user ──────────────────────────────────────────────────────────

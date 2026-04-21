@@ -8,7 +8,7 @@ import {
   ResponsiveContainer,
 } from 'recharts'
 import type { ChartSpec } from '../../types'
-import { formatValue, abbreviateLabel } from '../../lib/chartSpec'
+import { formatValue, formatAxisTick, abbreviateLabel } from '../../lib/chartSpec'
 import { ChartSkeleton } from '../common/Skeleton'
 
 // Brand navy ramp — darkest to lightest
@@ -67,7 +67,7 @@ export default function ChartRenderer({ spec, data, loading, onDrillDown }: Prop
   const yField = spec.y_axis?.field
   const series = spec.series ?? (yField ? [{ field: yField, label: yField, color: PALETTE[0] }] : [])
 
-  const yFormatter = (v: unknown) => formatValue(v, spec.y_axis?.type)
+  const yFormatter = (v: unknown) => formatAxisTick(v, spec.y_axis?.type)
   const isCategoricalAxis = spec.x_axis?.type !== 'temporal' && spec.x_axis?.type !== 'numeric'
   const xFormatter = (v: unknown) => {
     const label = formatValue(v, spec.x_axis?.type)
@@ -222,7 +222,35 @@ function DataTable({
   spec: ChartSpec
   onRowClick?: (row: Record<string, unknown>) => void
 }) {
-  const columns = Object.keys(data[0] ?? {})
+  const dataCols = Object.keys(data[0] ?? {})
+
+  // Build a map from field → SeriesSpec for fast lookup
+  const seriesMap = new Map((spec.series ?? []).map((s) => [s.field, s]))
+
+  // Column order: x_axis first (if not in series), then series fields, then remaining data cols
+  const seriesCols = (spec.series ?? []).map((s) => s.field).filter((f) => dataCols.includes(f))
+  const xField = spec.x_axis?.field
+  const extra = dataCols.filter((c) => !seriesCols.includes(c) && c !== xField)
+  const columns =
+    seriesCols.length > 0
+      ? [...(xField && !seriesCols.includes(xField) ? [xField] : []), ...seriesCols, ...extra]
+      : dataCols
+
+  function getLabel(col: string): string {
+    const s = seriesMap.get(col)
+    if (s) return s.label
+    if (col === spec.x_axis?.field) return spec.x_axis?.label ?? col.replace(/_/g, ' ')
+    if (col === spec.y_axis?.field) return spec.y_axis?.label ?? col.replace(/_/g, ' ')
+    return col.replace(/_/g, ' ')
+  }
+
+  function getType(col: string): string | undefined {
+    const s = seriesMap.get(col)
+    if (s?.type) return s.type
+    if (col === spec.y_axis?.field) return spec.y_axis?.type
+    if (col === spec.x_axis?.field) return spec.x_axis?.type
+    return undefined
+  }
 
   return (
     <div className="overflow-x-auto">
@@ -231,7 +259,7 @@ function DataTable({
           <tr className="border-b border-gray-200">
             {columns.map((col) => (
               <th key={col} className="px-3 py-2 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">
-                {col.replace(/_/g, ' ')}
+                {getLabel(col)}
               </th>
             ))}
           </tr>
@@ -244,12 +272,12 @@ function DataTable({
               onClick={() => onRowClick?.(row)}
             >
               {columns.map((col) => {
-                const valueType =
-                  col === spec.y_axis?.field ? spec.y_axis?.type :
-                  col === spec.x_axis?.field ? spec.x_axis?.type : undefined
+                const colType = getType(col)
                 return (
                   <td key={col} className="px-3 py-2 text-gray-700">
-                    {formatValue(row[col], valueType)}
+                    {colType === 'trend_indicator'
+                      ? <TrendBadge value={row[col]} />
+                      : <FormattedCell value={row[col]} type={colType} />}
                   </td>
                 )
               })}
@@ -259,6 +287,24 @@ function DataTable({
       </table>
     </div>
   )
+}
+
+function TrendBadge({ value }: { value: unknown }) {
+  const num = Number(value)
+  if (isNaN(num)) return <span className="text-gray-400">—</span>
+  const pos = num > 0
+  const neg = num < 0
+  return (
+    <span className={`inline-flex items-center gap-0.5 font-semibold tabular-nums ${pos ? 'text-emerald-600' : neg ? 'text-red-500' : 'text-gray-500'}`}>
+      {pos ? '▲' : neg ? '▼' : '●'}&nbsp;{Math.abs(num).toFixed(1)}%
+    </span>
+  )
+}
+
+function FormattedCell({ value, type }: { value: unknown; type?: string }) {
+  const formatted = formatValue(value, type)
+  const isNegPercent = type === 'percent' && Number(value) < 0
+  return <span className={isNegPercent ? 'text-red-500 font-medium' : undefined}>{formatted}</span>
 }
 
 // ─── Heatmap renderer ─────────────────────────────────────────────────────────

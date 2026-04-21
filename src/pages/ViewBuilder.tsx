@@ -26,6 +26,14 @@ export default function ViewBuilder() {
   const [aiLoading, setAiLoading] = useState(false)
   const chatEndRef = useRef<HTMLDivElement>(null)
 
+  // Mobile: which panel is active ('chat' | 'chart')
+  const [mobilePanel, setMobilePanel] = useState<'chat' | 'chart'>('chat')
+
+  // Auto-switch to chart when a spec arrives
+  useEffect(() => {
+    if (spec) setMobilePanel('chart')
+  }, [spec])
+
   // Load existing view
   useEffect(() => {
     if (!id || id === 'new') {
@@ -149,147 +157,190 @@ export default function ViewBuilder() {
   }
 
   return (
-    <AppShell className="flex flex-col lg:flex-row h-[calc(100vh-3.5rem)]">
-      {/* Chart canvas */}
-      <div className="flex-1 overflow-y-auto p-6">
-        {error && (
-          <div className="mb-4 rounded-lg bg-red-50 border border-red-200 px-4 py-3 text-sm text-red-700">
-            {error}
-          </div>
-        )}
+    <AppShell className="flex flex-col h-[calc(100vh-3.5rem)]">
 
-        {!spec ? (
-          <div className="flex flex-col items-center justify-center h-64 text-gray-400 gap-3">
-            <span className="text-5xl">💬</span>
-            <p className="text-center">
-              Ask the AI to build a view for you,<br />or open a suggested view from the gallery.
-            </p>
-          </div>
-        ) : (
-          <div className="bg-white rounded-xl border border-gray-200 p-6">
-            <div className="flex items-start justify-between mb-2">
-              <div>
-                <h2 className="text-xl font-bold text-gray-900">{spec.title}</h2>
-                <p className="text-sm text-gray-500 mt-0.5">{spec.description}</p>
-              </div>
-              <div className="flex gap-2 flex-shrink-0 ml-4">
-                <button
-                  onClick={handleSaveView}
-                  className="text-sm bg-primary-800 text-white px-3 py-1.5 rounded-lg hover:bg-primary-700 transition-colors"
-                >
-                  Save
-                </button>
-              </div>
-            </div>
-
-            {spec.filters_applied && spec.filters_applied.length > 0 && (
-              <div className="flex flex-wrap gap-1.5 mb-4">
-                {spec.filters_applied.map((f, i) => (
-                  <span key={i} className="text-xs bg-blue-50 text-primary-800 border border-blue-200 px-2 py-0.5 rounded-full">
-                    {f.field}: {f.value}
-                  </span>
-                ))}
-              </div>
-            )}
-
-            <ChartRenderer
-              spec={spec}
-              data={data}
-              loading={queryLoading}
-              onDrillDown={(row) => {
-                // TODO Phase 4: implement drill-down filter
-                console.log('Drill down into:', row)
-              }}
-            />
-
-            {spec.drill_down_hint && (
-              <p className="mt-3 text-xs text-gray-400">{spec.drill_down_hint}</p>
-            )}
-          </div>
-        )}
-
-        {/* Follow-up suggestions */}
-        {spec?.follow_up_suggestions && spec.follow_up_suggestions.length > 0 && (
-          <div className="mt-4">
-            <p className="text-xs text-gray-500 mb-2">Follow-up ideas:</p>
-            <div className="flex flex-wrap gap-2">
-              {spec.follow_up_suggestions.map((s, i) => (
-                <button
-                  key={i}
-                  onClick={() => setInput(s)}
-                  className="text-xs bg-white border border-gray-200 text-gray-600 px-3 py-1.5 rounded-full hover:border-primary-300 hover:text-primary-800 transition-colors"
-                >
-                  {s}
-                </button>
-              ))}
-            </div>
-          </div>
-        )}
+      {/* Mobile tab switcher — hidden on lg+ */}
+      <div className="flex-shrink-0 flex border-b border-gray-200 bg-white lg:hidden">
+        <button
+          onClick={() => setMobilePanel('chart')}
+          className={[
+            'flex-1 py-2.5 text-sm font-semibold border-b-2 transition-colors',
+            mobilePanel === 'chart'
+              ? 'border-primary-800 text-primary-800'
+              : 'border-transparent text-gray-500 hover:text-gray-700',
+          ].join(' ')}
+        >
+          Chart
+        </button>
+        <button
+          onClick={() => setMobilePanel('chat')}
+          className={[
+            'flex-1 py-2.5 text-sm font-semibold border-b-2 transition-colors',
+            mobilePanel === 'chat'
+              ? 'border-primary-800 text-primary-800'
+              : 'border-transparent text-gray-500 hover:text-gray-700',
+          ].join(' ')}
+        >
+          AI Chat
+          {chatHistory.length > 0 && (
+            <span className="ml-1.5 inline-flex items-center justify-center text-xs bg-primary-100 text-primary-800 px-1.5 py-0.5 rounded-full font-medium">
+              {chatHistory.length}
+            </span>
+          )}
+        </button>
       </div>
 
-      {/* Chat panel */}
-      <div className="lg:w-96 border-t lg:border-t-0 lg:border-l border-gray-200 flex flex-col bg-gray-50">
-        <div className="px-4 py-3 border-b border-gray-200 bg-white">
-          <h3 className="font-semibold text-gray-900 text-sm">AI Chat</h3>
-          <p className="text-xs text-gray-400">Describe a view in plain English</p>
-        </div>
+      {/* Content: side-by-side on lg+, single panel on mobile */}
+      <div className="flex-1 flex flex-col lg:flex-row min-h-0">
 
-        <div className="flex-1 overflow-y-auto p-4 space-y-3 scrollbar-thin">
-          {chatHistory.length === 0 && (
-            <p className="text-xs text-gray-400 text-center mt-8">
-              Try: "Show me revenue by month for the last year"
-            </p>
-          )}
-          {chatHistory.map((msg) => (
-            <div
-              key={msg.id}
-              className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}
-            >
-              <div
-                className={`max-w-[85%] rounded-2xl px-4 py-2.5 text-sm ${
-                  msg.role === 'user'
-                    ? 'bg-primary-800 text-white rounded-br-md'
-                    : 'bg-white text-gray-700 border border-gray-200 rounded-bl-md'
-                }`}
-              >
-                {msg.content}
-              </div>
+        {/* Chart canvas */}
+        <div className={[
+          'flex-1 overflow-y-auto p-4 sm:p-6',
+          mobilePanel === 'chat' ? 'hidden lg:block' : '',
+        ].join(' ')}>
+          {error && (
+            <div className="mb-4 rounded-lg bg-red-50 border border-red-200 px-4 py-3 text-sm text-red-700">
+              {error}
             </div>
-          ))}
-          {aiLoading && (
-            <div className="flex justify-start">
-              <div className="bg-white border border-gray-200 rounded-2xl rounded-bl-md px-4 py-2.5">
-                <div className="flex gap-1">
-                  {[0, 1, 2].map((i) => (
-                    <div key={i} className="w-1.5 h-1.5 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: `${i * 150}ms` }} />
-                  ))}
+          )}
+
+          {!spec ? (
+            <div className="flex flex-col items-center justify-center h-64 text-gray-400 gap-3">
+              <span className="text-5xl">💬</span>
+              <p className="text-center">
+                Ask the AI to build a view for you,<br />or open a suggested view from the gallery.
+              </p>
+            </div>
+          ) : (
+            <div className="bg-white rounded-xl border border-gray-200 p-4 sm:p-6">
+              <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between mb-2 gap-2">
+                <div className="min-w-0">
+                  <h2 className="text-xl font-bold text-gray-900">{spec.title}</h2>
+                  <p className="text-sm text-gray-500 mt-0.5">{spec.description}</p>
+                </div>
+                <div className="flex gap-2 sm:flex-shrink-0 sm:ml-4">
+                  <button
+                    onClick={handleSaveView}
+                    className="text-sm bg-primary-800 text-white px-3 py-1.5 rounded-lg hover:bg-primary-700 transition-colors"
+                  >
+                    Save
+                  </button>
                 </div>
               </div>
+
+              {spec.filters_applied && spec.filters_applied.length > 0 && (
+                <div className="flex flex-wrap gap-1.5 mb-4">
+                  {spec.filters_applied.map((f, i) => (
+                    <span key={i} className="text-xs bg-blue-50 text-primary-800 border border-blue-200 px-2 py-0.5 rounded-full">
+                      {f.field}: {f.value}
+                    </span>
+                  ))}
+                </div>
+              )}
+
+              <ChartRenderer
+                spec={spec}
+                data={data}
+                loading={queryLoading}
+                onDrillDown={(row) => {
+                  // TODO Phase 4: implement drill-down filter
+                  console.log('Drill down into:', row)
+                }}
+              />
+
+              {spec.drill_down_hint && (
+                <p className="mt-3 text-xs text-gray-400">{spec.drill_down_hint}</p>
+              )}
             </div>
           )}
-          <div ref={chatEndRef} />
+
+          {/* Follow-up suggestions */}
+          {spec?.follow_up_suggestions && spec.follow_up_suggestions.length > 0 && (
+            <div className="mt-4">
+              <p className="text-xs text-gray-500 mb-2">Follow-up ideas:</p>
+              <div className="flex flex-wrap gap-2">
+                {spec.follow_up_suggestions.map((s, i) => (
+                  <button
+                    key={i}
+                    onClick={() => { setInput(s); setMobilePanel('chat') }}
+                    className="text-xs bg-white border border-gray-200 text-gray-600 px-3 py-1.5 rounded-full hover:border-primary-300 hover:text-primary-800 transition-colors"
+                  >
+                    {s}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
 
-        <div className="p-4 border-t border-gray-200 bg-white">
-          <div className="flex gap-2">
-            <input
-              type="text"
-              value={input}
-              onChange={(e) => setInput(e.target.value)}
-              onKeyDown={(e) => e.key === 'Enter' && !e.shiftKey && handleSendMessage()}
-              placeholder="Ask for a view..."
-              className="flex-1 text-sm border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary-800 focus:border-transparent"
-              disabled={aiLoading}
-            />
-            <button
-              onClick={handleSendMessage}
-              disabled={!input.trim() || aiLoading}
-              className="bg-primary-800 text-white px-3 py-2 rounded-lg hover:bg-primary-700 disabled:opacity-50 transition-colors text-sm"
-            >
-              Send
-            </button>
+        {/* Chat panel */}
+        <div className={[
+          'flex-1 lg:flex-none lg:w-96 border-t lg:border-t-0 lg:border-l border-gray-200 flex flex-col bg-gray-50',
+          mobilePanel === 'chart' ? 'hidden lg:flex' : '',
+        ].join(' ')}>
+          <div className="px-4 py-3 border-b border-gray-200 bg-white flex-shrink-0">
+            <h3 className="font-semibold text-gray-900 text-sm">AI Chat</h3>
+            <p className="text-xs text-gray-400">Describe a view in plain English</p>
+          </div>
+
+          <div className="flex-1 overflow-y-auto p-4 space-y-3 min-h-0">
+            {chatHistory.length === 0 && (
+              <p className="text-xs text-gray-400 text-center mt-8">
+                Try: "Show me revenue by month for the last year"
+              </p>
+            )}
+            {chatHistory.map((msg) => (
+              <div
+                key={msg.id}
+                className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}
+              >
+                <div
+                  className={`max-w-[85%] rounded-2xl px-4 py-2.5 text-sm ${
+                    msg.role === 'user'
+                      ? 'bg-primary-800 text-white rounded-br-md'
+                      : 'bg-white text-gray-700 border border-gray-200 rounded-bl-md'
+                  }`}
+                >
+                  {msg.content}
+                </div>
+              </div>
+            ))}
+            {aiLoading && (
+              <div className="flex justify-start">
+                <div className="bg-white border border-gray-200 rounded-2xl rounded-bl-md px-4 py-2.5">
+                  <div className="flex gap-1">
+                    {[0, 1, 2].map((i) => (
+                      <div key={i} className="w-1.5 h-1.5 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: `${i * 150}ms` }} />
+                    ))}
+                  </div>
+                </div>
+              </div>
+            )}
+            <div ref={chatEndRef} />
+          </div>
+
+          <div className="p-4 border-t border-gray-200 bg-white flex-shrink-0">
+            <div className="flex gap-2">
+              <input
+                type="text"
+                value={input}
+                onChange={(e) => setInput(e.target.value)}
+                onKeyDown={(e) => e.key === 'Enter' && !e.shiftKey && handleSendMessage()}
+                placeholder="Ask for a view..."
+                className="flex-1 text-sm border border-gray-300 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-primary-800 focus:border-transparent"
+                disabled={aiLoading}
+              />
+              <button
+                onClick={handleSendMessage}
+                disabled={!input.trim() || aiLoading}
+                className="bg-primary-800 text-white px-3 py-2 rounded-lg hover:bg-primary-700 disabled:opacity-50 transition-colors text-sm"
+              >
+                Send
+              </button>
+            </div>
           </div>
         </div>
+
       </div>
     </AppShell>
   )

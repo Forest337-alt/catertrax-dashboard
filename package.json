@@ -10,7 +10,8 @@
     "preview": "vite preview",
     "test": "vitest run",
     "test:watch": "vitest",
-    "seed": "node supabase/seed/seed.mjs"
+    "seed": "node supabase/seed/seed.mjs",
+    "seed:views": "node supabase/seed/seed-suggested-views.mjs"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.55.0",

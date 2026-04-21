@@ -10,20 +10,28 @@ import { useDashboardKpis } from '../lib/useDashboardKpis'
 import type { DashboardKpis } from '../lib/useDashboardKpis'
 import { generateView } from '../lib/claude'
 import { useSession } from '../lib/session'
-import type { SavedView, ChartSpec, ChatMessage } from '../types'
+import type { SavedView, ChartSpec, ChatMessage, ValueType } from '../types'
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
 const SITE_ID = import.meta.env.VITE_DEMO_SITE_ID as string
 
 const CATEGORY_LABELS: Record<string, string> = {
-  revenue: 'Orders & Revenue',
-  adoption: 'Program Adoption',
-  menu: 'Menu Mix',
-  financials: 'Financials',
+  orders_revenue:  'Orders & Revenue',
+  adoption_growth: 'Program Adoption & Growth',
+  menu_mix:        'Menu & Product Mix',
+  financial:       'Financial & Forecasting',
 }
 
-const CATEGORY_ORDER = ['revenue', 'adoption', 'menu', 'financials']
+const CATEGORY_ORDER = ['orders_revenue', 'adoption_growth', 'menu_mix', 'financial']
+
+// Maps old [description-tag] seeds → new tab IDs (backward compat until re-seed)
+const LEGACY_TAG_MAP: Record<string, string> = {
+  revenue:   'orders_revenue',
+  adoption:  'adoption_growth',
+  menu:      'menu_mix',
+  financials: 'financial',
+}
 
 const CHART_ICONS: Record<string, string> = {
   line: '📈', area: '📉', bar: '📊', stacked_bar: '📊',
@@ -82,6 +90,7 @@ export default function Gallery() {
   const [views, setViews] = useState<SavedView[]>([])
   const [viewsLoading, setViewsLoading] = useState(true)
   const [selectedId, setSelectedId] = useState<string | null>(null)
+  const [selectedKpiTabId, setSelectedKpiTabId] = useState<string | null>(null)
 
   // AI state
   const [aiSpec, setAiSpec] = useState<ChartSpec | null>(null)
@@ -90,6 +99,9 @@ export default function Gallery() {
   const [aiHistory, setAiHistory] = useState<ChatMessage[]>([])
   const [aiThinking, setAiThinking] = useState(false)
   const [aiError, setAiError] = useState<string | null>(null)
+
+  // Mobile sidebar state
+  const [sidebarOpen, setSidebarOpen] = useState(false)
 
   // Save modal state
   const [showSaveModal, setShowSaveModal] = useState(false)
@@ -110,7 +122,10 @@ export default function Gallery() {
   }, [])
 
   const grouped = views.reduce<Record<string, SavedView[]>>((acc, view) => {
-    const tag = (view.description ?? '').match(/\[(\w+)\]/)?.[1] ?? 'other'
+    const rawTag = view.chart_spec.meta?.tab
+      ?? (view.description ?? '').match(/\[(\w+)\]/)?.[1]
+      ?? 'other'
+    const tag = LEGACY_TAG_MAP[rawTag] ?? rawTag
     ;(acc[tag] ??= []).push(view)
     return acc
   }, {})
@@ -123,15 +138,29 @@ export default function Gallery() {
 
   function handleSelectView(id: string) {
     setSelectedId(id)
+    setSelectedKpiTabId(null)
     setAiSpec(null)
     setAiData([])
     setAiHistory([])
     setAiError(null)
+    setSidebarOpen(false)
+  }
+
+  function handleSelectKpiTab(tabId: string) {
+    setSelectedKpiTabId(tabId)
+    setSelectedId(null)
+    setAiSpec(null)
+    setAiData([])
+    setAiHistory([])
+    setAiError(null)
+    setSidebarOpen(false)
   }
 
   async function handleAiSubmit(userInput: string) {
     if (!userInput.trim() || aiThinking || !user) return
     setSelectedId(null)
+    setSelectedKpiTabId(null)
+    setSidebarOpen(false)
     setAiThinking(true)
     setAiError(null)
 
@@ -184,6 +213,7 @@ export default function Gallery() {
     setAiData([])
     setAiHistory([])
     setAiError(null)
+    setSelectedKpiTabId(null)
   }
 
   function openSaveModal() {
@@ -219,40 +249,89 @@ export default function Gallery() {
   return (
     <AppShell className="flex overflow-hidden">
 
-      {/* ── Left sidebar ── */}
-      <aside className="w-60 flex-shrink-0 bg-gray-50 border-r border-gray-200 flex flex-col overflow-hidden">
-        <div className="px-4 py-4 border-b border-gray-200">
+      {/* Mobile backdrop — covers content area when sidebar is open */}
+      {sidebarOpen && (
+        <div
+          className="fixed top-14 left-0 right-0 bottom-0 z-30 bg-black/40 md:hidden"
+          onClick={() => setSidebarOpen(false)}
+        />
+      )}
+
+      {/* ── Left sidebar — fixed drawer on mobile, static on md+ ── */}
+      <aside className={[
+        'fixed top-14 left-0 bottom-0 z-40 w-72',
+        'flex-shrink-0 bg-gray-50 border-r border-gray-200 flex flex-col overflow-hidden',
+        'transition-transform duration-200 ease-in-out',
+        'md:static md:w-60 md:transform-none md:z-auto',
+        sidebarOpen ? 'translate-x-0' : '-translate-x-full',
+      ].join(' ')}>
+        <div className="px-4 py-4 border-b border-gray-200 flex items-center justify-between">
           <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Suggested Views</p>
+          <button
+            onClick={() => setSidebarOpen(false)}
+            className="md:hidden p-1 text-gray-400 hover:text-gray-600 transition-colors"
+            aria-label="Close menu"
+          >
+            ✕
+          </button>
         </div>
 
         <nav className="flex-1 overflow-y-auto py-2">
           {viewsLoading ? (
             <SidebarSkeleton />
           ) : (
-            sortedCategories.map((tag) => (
-              <div key={tag} className="mb-3">
-                <p className="px-4 py-1 text-xs font-semibold text-gray-400 uppercase tracking-wider">
-                  {CATEGORY_LABELS[tag] ?? tag}
-                </p>
-                {(grouped[tag] ?? []).map((view) => (
-                  <button
-                    key={view.id}
-                    onClick={() => handleSelectView(view.id)}
-                    className={[
-                      'w-full flex items-center gap-2 px-4 py-2 text-sm text-left transition-colors',
-                      selectedId === view.id
-                        ? 'bg-primary-800 text-white'
-                        : 'text-gray-700 hover:bg-gray-100',
-                    ].join(' ')}
-                  >
-                    <span className="flex-shrink-0 text-base leading-none">
-                      {CHART_ICONS[view.chart_spec.chart_type] ?? '📊'}
-                    </span>
-                    <span className="truncate">{view.name}</span>
-                  </button>
-                ))}
-              </div>
-            ))
+            sortedCategories.map((tag) => {
+              const tabViews = grouped[tag] ?? []
+              const kpiViews = tabViews.filter((v) => v.chart_spec.chart_type === 'kpi_card')
+              const chartViews = tabViews.filter((v) => v.chart_spec.chart_type !== 'kpi_card')
+              const kpiSelected = selectedKpiTabId === tag
+              return (
+                <div key={tag} className="mb-3">
+                  <p className="px-4 py-1 text-xs font-semibold text-gray-400 uppercase tracking-wider">
+                    {CATEGORY_LABELS[tag] ?? tag}
+                  </p>
+
+                  {kpiViews.length > 0 && (
+                    <button
+                      onClick={() => handleSelectKpiTab(tag)}
+                      className={[
+                        'w-full flex items-center gap-2 px-4 py-2 text-sm text-left transition-colors',
+                        kpiSelected
+                          ? 'bg-primary-800 text-white'
+                          : 'text-gray-700 hover:bg-gray-100',
+                      ].join(' ')}
+                    >
+                      <span className="flex-shrink-0 text-base leading-none">⊞</span>
+                      <span className="truncate font-semibold">Key Metrics</span>
+                      <span className={[
+                        'ml-auto flex-shrink-0 text-xs font-medium px-1.5 py-0.5 rounded-full',
+                        kpiSelected ? 'bg-white/20 text-white' : 'bg-gray-200 text-gray-500',
+                      ].join(' ')}>
+                        {kpiViews.length}
+                      </span>
+                    </button>
+                  )}
+
+                  {chartViews.map((view) => (
+                    <button
+                      key={view.id}
+                      onClick={() => handleSelectView(view.id)}
+                      className={[
+                        'w-full flex items-center gap-2 px-4 py-2 text-sm text-left transition-colors',
+                        selectedId === view.id
+                          ? 'bg-primary-800 text-white'
+                          : 'text-gray-700 hover:bg-gray-100',
+                      ].join(' ')}
+                    >
+                      <span className="flex-shrink-0 text-base leading-none">
+                        {CHART_ICONS[view.chart_spec.chart_type] ?? '📊'}
+                      </span>
+                      <span className="truncate">{view.name}</span>
+                    </button>
+                  ))}
+                </div>
+              )
+            })
           )}
         </nav>
 
@@ -267,9 +346,36 @@ export default function Gallery() {
       </aside>
 
       {/* ── Right pane ── */}
-      <div className="flex-1 overflow-y-auto bg-white">
+      <div className="flex-1 overflow-y-auto bg-white min-w-0">
+
+        {/* Mobile top bar — hamburger + current view title */}
+        <div className="sticky top-0 z-20 flex items-center gap-3 h-12 px-4 bg-white border-b border-gray-100 md:hidden">
+          <button
+            onClick={() => setSidebarOpen(true)}
+            className="p-1.5 -ml-1.5 rounded-lg text-gray-600 hover:bg-gray-100 transition-colors"
+            aria-label="Open views menu"
+          >
+            <span className="text-xl leading-none">☰</span>
+          </button>
+          <span className="text-sm font-semibold text-gray-800 truncate">
+            {selectedView?.name
+              ?? (selectedKpiTabId
+                ? `${CATEGORY_LABELS[selectedKpiTabId] ?? selectedKpiTabId} — Key Metrics`
+                : aiSpec
+                  ? aiSpec.title
+                  : 'Dashboard Overview')}
+          </span>
+        </div>
+
         {selectedView ? (
           <ViewDetailPane key={selectedView.id} view={selectedView} />
+        ) : selectedKpiTabId ? (
+          <KeyMetricsDashboardPane
+            key={selectedKpiTabId}
+            tabId={selectedKpiTabId}
+            label={CATEGORY_LABELS[selectedKpiTabId] ?? selectedKpiTabId}
+            views={(grouped[selectedKpiTabId] ?? []).filter((v) => v.chart_spec.chart_type === 'kpi_card')}
+          />
         ) : aiSpec ? (
           <AiResultPane
             spec={aiSpec}
@@ -331,7 +437,7 @@ function OverviewPane({
   }
 
   return (
-    <div className="px-8 pt-8 pb-24 max-w-5xl">
+    <div className="px-4 pt-4 pb-20 sm:px-8 sm:pt-8 sm:pb-24 max-w-5xl">
       <div className="mb-6">
         <h1 className="text-2xl font-bold text-gray-900">Dashboard Overview</h1>
         <p className="mt-1 text-gray-500">
@@ -437,10 +543,10 @@ function AiResultPane({
   }
 
   return (
-    <div className="px-8 pt-8 pb-24 max-w-5xl">
+    <div className="px-4 pt-4 pb-20 sm:px-8 sm:pt-8 sm:pb-24 max-w-5xl">
 
       {/* Header */}
-      <div className="flex items-start justify-between mb-6 gap-4">
+      <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between mb-6 gap-3">
         <div className="min-w-0">
           <button
             onClick={onReset}
@@ -542,8 +648,8 @@ function ViewDetailPane({ view }: { view: SavedView }) {
   }, [view.sql_query])
 
   return (
-    <div className="px-8 pt-8 pb-24 max-w-5xl">
-      <div className="flex items-start justify-between mb-6 gap-4">
+    <div className="px-4 pt-4 pb-20 sm:px-8 sm:pt-8 sm:pb-24 max-w-5xl">
+      <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between mb-6 gap-3">
         <div className="min-w-0">
           <div className="flex items-center gap-2 mb-2">
             <span className="text-xs text-gray-400 bg-gray-100 px-2 py-0.5 rounded-full capitalize">
@@ -644,6 +750,169 @@ function SaveViewModal({
           </div>
         </form>
       </div>
+    </div>
+  )
+}
+
+// ─── Key metrics dashboard pane ───────────────────────────────────────────────
+
+const METRIC_ACCENTS = ['#234A73', '#4582A9', '#5B9EC9', '#76a4c4']
+
+function formatMetricValue(value: number | null, type: string): string {
+  if (value === null || isNaN(Number(value))) return '—'
+  const num = Number(value)
+  switch (type) {
+    case 'currency':
+      return new Intl.NumberFormat('en-US', {
+        style: 'currency', currency: 'USD',
+        minimumFractionDigits: 0, maximumFractionDigits: 0,
+        notation: Math.abs(num) >= 100_000 ? 'compact' : 'standard',
+      }).format(num)
+    case 'percent':
+      return `${num.toFixed(1)}%`
+    default:
+      return new Intl.NumberFormat('en-US', {
+        notation: Math.abs(num) >= 10_000 ? 'compact' : 'standard',
+      }).format(num)
+  }
+}
+
+type MetricState = {
+  view: SavedView
+  value: number | null
+  priorValue: number | null
+  loading: boolean
+  error: string | null
+}
+
+function KeyMetricsDashboardPane({ tabId, label, views }: {
+  tabId: string
+  label: string
+  views: SavedView[]
+}) {
+  const [metrics, setMetrics] = useState<MetricState[]>(
+    views.map((v) => ({ view: v, value: null, priorValue: null, loading: true, error: null }))
+  )
+
+  useEffect(() => {
+    if (views.length === 0) return
+    setMetrics(views.map((v) => ({ view: v, value: null, priorValue: null, loading: true, error: null })))
+
+    views.forEach((view, i) => {
+      executeQuery(view.sql_query)
+        .then((rows) => {
+          const row = (rows[0] ?? {}) as Record<string, unknown>
+          const primaryField = view.chart_spec.y_axis?.field ?? ''
+          const value = row[primaryField] != null ? Number(row[primaryField]) : null
+          const priorKey = Object.keys(row).find((k) => k.startsWith('prior_'))
+          const priorValue = priorKey && row[priorKey] != null ? Number(row[priorKey]) : null
+          setMetrics((prev) => prev.map((m, idx) =>
+            idx === i ? { ...m, value, priorValue, loading: false } : m
+          ))
+        })
+        .catch((err) => {
+          setMetrics((prev) => prev.map((m, idx) =>
+            idx === i
+              ? { ...m, error: err instanceof Error ? err.message : 'Query failed', loading: false }
+              : m
+          ))
+        })
+    })
+  }, [tabId]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  const TAB_DESCRIPTIONS: Record<string, string> = {
+    orders_revenue:  'Top-line performance — revenue, volume, AOV, and fulfillment at a glance.',
+    adoption_growth: 'Program health — active accounts, new acquisition, and repeat behaviour.',
+    menu_mix:        'Menu vitals — catalog size, revenue concentration, and average margin.',
+    financial:       'Financial pulse — revenue, budget attainment, margin, and food cost.',
+  }
+
+  // Responsive grid: 2-col on mobile, up to 4 on large screens
+  const gridCols =
+    views.length <= 2 ? 'grid-cols-2' :
+    views.length === 3 ? 'grid-cols-2 md:grid-cols-3' :
+    'grid-cols-2 lg:grid-cols-4'
+
+  return (
+    <div className="px-4 pt-4 pb-20 sm:px-8 sm:pt-8 sm:pb-24 max-w-5xl">
+      {/* Header */}
+      <div className="mb-7">
+        <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-1">{label}</p>
+        <h1 className="text-2xl font-bold text-gray-900">Key Metrics</h1>
+        <p className="mt-1 text-sm text-gray-500">{TAB_DESCRIPTIONS[tabId] ?? 'Summary metrics for this category.'}</p>
+      </div>
+
+      {/* Metric grid */}
+      <div className={`grid ${gridCols} gap-4`}>
+        {metrics.map(({ view, value, priorValue, loading, error }, i) => {
+          const type = (view.chart_spec.y_axis?.type ?? 'numeric') as ValueType
+          const accent = METRIC_ACCENTS[i % METRIC_ACCENTS.length]
+
+          let trend: number | null = null
+          if (value !== null && priorValue !== null && priorValue !== 0) {
+            trend = ((value - priorValue) / priorValue) * 100
+          }
+
+          return (
+            <div key={view.id} className="bg-white rounded-xl border border-gray-200 overflow-hidden shadow-sm">
+              {/* Colored top accent */}
+              <div className="h-1.5" style={{ backgroundColor: accent }} />
+
+              <div className="p-5">
+                {loading ? (
+                  <div className="space-y-2">
+                    <Skeleton className="h-3 w-2/3" />
+                    <Skeleton className="h-9 w-3/4 mt-1" />
+                    <Skeleton className="h-5 w-24 mt-2 rounded-full" />
+                  </div>
+                ) : error ? (
+                  <p className="text-xs text-red-500 mt-1">{error}</p>
+                ) : (
+                  <>
+                    {/* Metric name */}
+                    <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3 leading-tight">
+                      {view.name}
+                    </p>
+
+                    {/* Value */}
+                    <p className="text-3xl font-bold text-gray-900 tabular-nums tracking-tight mb-3">
+                      {formatMetricValue(value, type)}
+                    </p>
+
+                    {/* Trend badge */}
+                    {trend !== null ? (
+                      <span className={[
+                        'inline-flex items-center gap-1 text-xs font-semibold px-2.5 py-1 rounded-full',
+                        trend >= 0
+                          ? 'bg-emerald-50 text-emerald-700'
+                          : 'bg-red-50 text-red-600',
+                      ].join(' ')}>
+                        {trend >= 0 ? '↑' : '↓'}
+                        {' '}{Math.abs(trend).toFixed(1)}%
+                        <span className="font-normal text-gray-400 ml-0.5">vs prior year</span>
+                      </span>
+                    ) : (
+                      <span className="inline-flex items-center text-xs text-gray-400 px-2.5 py-1 rounded-full bg-gray-50">
+                        No prior-year data
+                      </span>
+                    )}
+
+                    {/* Description */}
+                    <p className="mt-3 text-xs text-gray-400 leading-relaxed">
+                      {view.chart_spec.description}
+                    </p>
+                  </>
+                )}
+              </div>
+            </div>
+          )
+        })}
+      </div>
+
+      {/* Hint */}
+      <p className="mt-6 text-xs text-gray-400">
+        Select an individual view from the sidebar to explore charts and tables for this category.
+      </p>
     </div>
   )
 }

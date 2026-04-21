@@ -23,7 +23,7 @@ export default function AppShell({ children, className }: Props) {
       {/* Header */}
       <header className="bg-primary-800 text-white border-b border-primary-900 shadow-sm">
         <div className="max-w-screen-xl mx-auto px-4 sm:px-6 lg:px-8 h-14 flex items-center justify-between">
-          <div className="flex items-center gap-6">
+          <div className="flex items-center gap-3 sm:gap-6">
             <Link to="/" className="flex items-center">
               <img
                 src="/catertrax-logo.png"
@@ -32,7 +32,7 @@ export default function AppShell({ children, className }: Props) {
               />
             </Link>
 
-            <nav className="hidden sm:flex items-center gap-1">
+            <nav className="flex items-center gap-1">
               <NavLink to="/">Gallery</NavLink>
               <NavLink to="/saved">My Views</NavLink>
             </nav>

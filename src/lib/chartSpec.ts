@@ -47,8 +47,8 @@ export function formatValue(value: unknown, type?: string): string {
     return new Intl.NumberFormat('en-US', {
       style: 'currency',
       currency: 'USD',
-      minimumFractionDigits: 0,
-      maximumFractionDigits: 0,
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
     }).format(num)
   }
 
@@ -74,6 +74,32 @@ export function formatValue(value: unknown, type?: string): string {
         return value
       }
     }
+  }
+
+  return String(value)
+}
+
+/**
+ * Compact axis-tick formatter — keeps labels short to avoid Y-axis crowding.
+ * Uses K/M suffixes for large numbers; 0 decimal places for currency.
+ */
+export function formatAxisTick(value: unknown, type?: string): string {
+  if (value === null || value === undefined) return ''
+  const num = Number(value)
+  if (isNaN(num)) return String(value)
+
+  if (type === 'currency') {
+    if (Math.abs(num) >= 1_000_000) return `$${(num / 1_000_000).toFixed(1)}M`
+    if (Math.abs(num) >= 1_000)     return `$${(num / 1_000).toFixed(0)}K`
+    return `$${num.toFixed(0)}`
+  }
+
+  if (type === 'percent') return `${num.toFixed(1)}%`
+
+  if (type === 'numeric' || !isNaN(num)) {
+    if (Math.abs(num) >= 1_000_000) return `${(num / 1_000_000).toFixed(1)}M`
+    if (Math.abs(num) >= 1_000)     return `${(num / 1_000).toFixed(0)}K`
+    return new Intl.NumberFormat('en-US').format(num)
   }
 
   return String(value)
