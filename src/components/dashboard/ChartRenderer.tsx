@@ -303,8 +303,13 @@ function TrendBadge({ value }: { value: unknown }) {
 
 function FormattedCell({ value, type }: { value: unknown; type?: string }) {
   const formatted = formatValue(value, type)
-  const isNegPercent = type === 'percent' && Number(value) < 0
-  return <span className={isNegPercent ? 'text-red-500 font-medium' : undefined}>{formatted}</span>
+  if (type === 'percent') {
+    const num = Number(value)
+    if (!isNaN(num) && num !== 0) {
+      return <span className={`font-medium ${num > 0 ? 'text-emerald-600' : 'text-red-500'}`}>{formatted}</span>
+    }
+  }
+  return <span>{formatted}</span>
 }
 
 // ─── Heatmap renderer ─────────────────────────────────────────────────────────
