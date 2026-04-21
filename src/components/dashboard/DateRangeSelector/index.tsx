@@ -191,7 +191,7 @@ export default function DateRangeSelector({
       {open && (
         <div
           ref={popoverRef}
-          className="absolute top-full mt-1.5 left-0 z-50 bg-white rounded-xl shadow-xl border border-gray-200 flex"
+          className="absolute top-full mt-1.5 right-0 z-50 bg-white rounded-xl shadow-xl border border-gray-200 flex"
           style={{ minWidth: 480 }}
         >
           {/* Left: preset list */}
