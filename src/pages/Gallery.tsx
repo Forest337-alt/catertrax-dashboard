@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react'
+import { ChevronDown } from 'lucide-react'
 import { Link, useNavigate, useLocation } from 'react-router-dom'
 import { format, differenceInCalendarDays } from 'date-fns'
 import AppShell from '../components/common/AppShell'
@@ -198,6 +199,12 @@ export default function Gallery() {
   // Mobile sidebar state
   const [sidebarOpen, setSidebarOpen] = useState(false)
 
+  // Collapsed sidebar sections (tag → true means collapsed)
+  const [collapsedSections, setCollapsedSections] = useState<Record<string, boolean>>({})
+  function toggleSection(tag: string) {
+    setCollapsedSections((prev) => ({ ...prev, [tag]: !prev[tag] }))
+  }
+
   // Save modal state
   const [showSaveModal, setShowSaveModal] = useState(false)
   const [saveError, setSaveError] = useState<string | null>(null)
@@ -389,49 +396,62 @@ export default function Gallery() {
               const chartViews = tabViews.filter((v) => v.chart_spec.chart_type !== 'kpi_card')
               const kpiSelected = selectedKpiTabId === tag
               return (
-                <div key={tag} className="mb-3">
-                  <p className="px-4 py-1 text-xs font-semibold text-gray-400 uppercase tracking-wider">
-                    {CATEGORY_LABELS[tag] ?? tag}
-                  </p>
+                <div key={tag} className="mb-1">
+                  <button
+                    onClick={() => toggleSection(tag)}
+                    className="w-full flex items-center gap-1 px-4 py-1.5 text-left hover:bg-gray-100 transition-colors group"
+                  >
+                    <ChevronDown className={[
+                      'w-3 h-3 text-gray-400 flex-shrink-0 transition-transform duration-150',
+                      collapsedSections[tag] ? '-rotate-90' : '',
+                    ].join(' ')} />
+                    <span className="text-xs font-semibold text-gray-400 uppercase tracking-wider">
+                      {CATEGORY_LABELS[tag] ?? tag}
+                    </span>
+                  </button>
 
-                  {kpiViews.length > 0 && (
-                    <button
-                      onClick={() => handleSelectKpiTab(tag)}
-                      className={[
-                        'w-full flex items-center gap-2 px-4 py-2 text-sm text-left transition-colors',
-                        kpiSelected
-                          ? 'bg-primary-800 text-white'
-                          : 'text-gray-700 hover:bg-gray-100',
-                      ].join(' ')}
-                    >
-                      <span className="flex-shrink-0 text-base leading-none">⊞</span>
-                      <span className="truncate font-semibold">Key Metrics</span>
-                      <span className={[
-                        'ml-auto flex-shrink-0 text-xs font-medium px-1.5 py-0.5 rounded-full',
-                        kpiSelected ? 'bg-white/20 text-white' : 'bg-gray-200 text-gray-500',
-                      ].join(' ')}>
-                        {kpiViews.length}
-                      </span>
-                    </button>
+                  {!collapsedSections[tag] && (
+                    <>
+                      {kpiViews.length > 0 && (
+                        <button
+                          onClick={() => handleSelectKpiTab(tag)}
+                          className={[
+                            'w-full flex items-center gap-2 px-4 py-2 text-sm text-left transition-colors',
+                            kpiSelected
+                              ? 'bg-primary-800 text-white'
+                              : 'text-gray-700 hover:bg-gray-100',
+                          ].join(' ')}
+                        >
+                          <span className="flex-shrink-0 text-base leading-none">⊞</span>
+                          <span className="truncate font-semibold">Key Metrics</span>
+                          <span className={[
+                            'ml-auto flex-shrink-0 text-xs font-medium px-1.5 py-0.5 rounded-full',
+                            kpiSelected ? 'bg-white/20 text-white' : 'bg-gray-200 text-gray-500',
+                          ].join(' ')}>
+                            {kpiViews.length}
+                          </span>
+                        </button>
+                      )}
+
+                      {chartViews.map((view) => (
+                        <button
+                          key={view.id}
+                          onClick={() => handleSelectView(view.id)}
+                          className={[
+                            'w-full flex items-center gap-2 px-4 py-2 text-sm text-left transition-colors',
+                            selectedId === view.id
+                              ? 'bg-primary-800 text-white'
+                              : 'text-gray-700 hover:bg-gray-100',
+                          ].join(' ')}
+                        >
+                          <span className="flex-shrink-0 text-base leading-none">
+                            {CHART_ICONS[view.chart_spec.chart_type] ?? '📊'}
+                          </span>
+                          <span className="truncate">{view.name}</span>
+                        </button>
+                      ))}
+                    </>
                   )}
-
-                  {chartViews.map((view) => (
-                    <button
-                      key={view.id}
-                      onClick={() => handleSelectView(view.id)}
-                      className={[
-                        'w-full flex items-center gap-2 px-4 py-2 text-sm text-left transition-colors',
-                        selectedId === view.id
-                          ? 'bg-primary-800 text-white'
-                          : 'text-gray-700 hover:bg-gray-100',
-                      ].join(' ')}
-                    >
-                      <span className="flex-shrink-0 text-base leading-none">
-                        {CHART_ICONS[view.chart_spec.chart_type] ?? '📊'}
-                      </span>
-                      <span className="truncate">{view.name}</span>
-                    </button>
-                  ))}
                 </div>
               )
             })
