@@ -39,6 +39,7 @@ export default function AppShell({ children, className }: Props) {
           </div>
 
           <div className="flex items-center gap-3">
+            <SoWhatButton count={totalActive} onClick={() => setPanelOpen(true)} />
             {user && (
               <span className="text-sm text-white/60 hidden sm:block">
                 {user.display_name}
@@ -59,9 +60,6 @@ export default function AppShell({ children, className }: Props) {
 
       {/* Main content */}
       <main className={clsx('flex-1', className)}>{children}</main>
-
-      {/* Floating insights button */}
-      <SoWhatButton count={totalActive} onClick={() => setPanelOpen(true)} />
 
       {/* Insights panel */}
       {panelOpen && (
