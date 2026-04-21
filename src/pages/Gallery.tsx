@@ -42,13 +42,6 @@ const CHART_ICONS: Record<string, string> = {
   pie: '🥧', kpi_card: '🎯', table: '📋', heatmap: '🔥', scatter: '⚬',
 }
 
-const EXAMPLE_PROMPTS = [
-  'Revenue by month this year',
-  'Top 10 accounts by order count',
-  'Order volume by channel type',
-  'Most popular menu items this quarter',
-]
-
 // ─── Date range helpers ────────────────────────────────────────────────────────
 
 /** Initialise DateRangeValue for last-30-days with prior-period comparison. */
@@ -178,6 +171,7 @@ export default function Gallery() {
   const [selectedKpiTabId, setSelectedKpiTabId] = useState<string | null>(null)
 
   // AI state
+  const [aiBarInput, setAiBarInput] = useState('')
   const [aiSpec, setAiSpec] = useState<ChartSpec | null>(null)
   const [aiData, setAiData] = useState<Record<string, unknown>[]>([])
   const [aiDataLoading, setAiDataLoading] = useState(false)
@@ -471,8 +465,8 @@ export default function Gallery() {
       {/* ── Right pane ── */}
       <div className="flex-1 overflow-y-auto bg-white min-w-0">
 
-        {/* ── Sticky top bar: mobile hamburger + date range selector ── */}
-        <div className="sticky top-0 z-20 flex items-center gap-3 px-4 py-2 bg-white border-b border-gray-100 min-h-[48px]">
+        {/* ── Sticky top bar ── */}
+        <div className="sticky top-0 z-20 flex items-center gap-3 px-4 py-2 bg-white border-b border-gray-100 min-h-[52px]">
           {/* Mobile: hamburger button */}
           <button
             onClick={() => setSidebarOpen(true)}
@@ -487,8 +481,27 @@ export default function Gallery() {
             {currentTitle}
           </span>
 
-          {/* Desktop: flexible space to push date picker right */}
-          <div className="hidden md:block flex-1" />
+          {/* Desktop: AI prompt input — takes available space */}
+          <form
+            className="hidden md:flex flex-1 items-center gap-2 min-w-0"
+            onSubmit={(e) => { e.preventDefault(); handleAiSubmit(aiBarInput); setAiBarInput('') }}
+          >
+            <input
+              type="text"
+              value={aiBarInput}
+              onChange={(e) => setAiBarInput(e.target.value)}
+              placeholder='Ask AI: "Show me top accounts by revenue this quarter…"'
+              disabled={aiThinking}
+              className="flex-1 text-sm border border-gray-200 rounded-lg px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-primary-800 focus:border-transparent disabled:opacity-60 bg-gray-50 min-w-0"
+            />
+            <button
+              type="submit"
+              disabled={!aiBarInput.trim() || aiThinking}
+              className="flex-shrink-0 bg-primary-800 text-white text-sm font-semibold px-3 py-1.5 rounded-lg hover:bg-primary-700 disabled:opacity-40 transition-colors whitespace-nowrap"
+            >
+              {aiThinking ? 'Building…' : 'Build →'}
+            </button>
+          </form>
 
           {/* Date range selector — always visible */}
           <DateRangeSelector
@@ -532,9 +545,6 @@ export default function Gallery() {
             kpis={kpis}
             kpisLoading={kpisLoading}
             dateRange={dateRange}
-            onSubmit={handleAiSubmit}
-            thinking={aiThinking}
-            error={aiError}
           />
         )}
       </div>
@@ -575,25 +585,11 @@ function OverviewPane({
   kpis,
   kpisLoading,
   dateRange,
-  onSubmit,
-  thinking,
-  error,
 }: {
   kpis: DashboardKpis
   kpisLoading: boolean
   dateRange: DateRangeValue
-  onSubmit: (text: string) => void
-  thinking: boolean
-  error: string | null
 }) {
-  const [input, setInput] = useState('')
-
-  function handleSubmit() {
-    if (!input.trim()) return
-    onSubmit(input)
-    setInput('')
-  }
-
   // Derive comparison label for KPI trend text
   const compLabel =
     dateRange.comparison === 'prior_year' ? 'vs prior year' :
@@ -638,53 +634,6 @@ function OverviewPane({
         />
       </div>
 
-      {/* AI prompt */}
-      <div className="rounded-2xl border border-gray-200 bg-gray-50 p-6">
-        <div className="flex items-center gap-2 mb-1">
-          <h2 className="text-base font-bold text-gray-900">Ask AI to build a custom view</h2>
-        </div>
-        <p className="text-sm text-gray-500 mb-4">
-          Describe any insight in plain English and get a chart instantly.
-        </p>
-
-        <div className="flex gap-2">
-          <input
-            type="text"
-            value={input}
-            onChange={(e) => setInput(e.target.value)}
-            onKeyDown={(e) => e.key === 'Enter' && !e.shiftKey && handleSubmit()}
-            placeholder='e.g. "Show me top 10 accounts by revenue this quarter"'
-            className="flex-1 text-sm border border-gray-300 rounded-lg px-3 py-2.5 focus:outline-none focus:ring-2 focus:ring-primary-800 focus:border-transparent disabled:opacity-60"
-            disabled={thinking}
-          />
-          <button
-            onClick={handleSubmit}
-            disabled={!input.trim() || thinking}
-            className="flex-shrink-0 bg-primary-800 text-white text-sm font-semibold px-4 py-2.5 rounded-lg hover:bg-primary-700 disabled:opacity-50 transition-colors whitespace-nowrap"
-          >
-            {thinking ? 'Building…' : 'Build →'}
-          </button>
-        </div>
-
-        {error && (
-          <p className="mt-3 text-sm text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
-            {error}
-          </p>
-        )}
-
-        <div className="flex flex-wrap items-center gap-2 mt-3">
-          <span className="text-xs text-gray-400">Try:</span>
-          {EXAMPLE_PROMPTS.map((p) => (
-            <button
-              key={p}
-              onClick={() => setInput(p)}
-              className="text-xs text-gray-600 bg-white border border-gray-200 px-3 py-1.5 rounded-full hover:border-primary-300 hover:text-primary-800 transition-colors"
-            >
-              {p}
-            </button>
-          ))}
-        </div>
-      </div>
     </div>
   )
 }
